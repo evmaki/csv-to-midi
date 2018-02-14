@@ -1,12 +1,17 @@
 {
-  "name": "cyclic",
+  "name": "csv-to-midi",
   "version": "1.0.0",
-  "description": "Converts CSV data to MIDI",
+  "description": "A simple tool for converting csv datasets to melodic midi files.",
   "main": "src/js/server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "E.M. King",
+  "author": "Evan King",
+  "repository":
+  {
+    "type": "git",
+    "url": "https://github.com/evmaki/csv-to-midi.git"
+  },
   "license": "ISC",
   "dependencies": {
     "express": "^4.16.2",
