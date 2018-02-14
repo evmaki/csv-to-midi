@@ -1,4 +1,4 @@
 *.csv
 *.xlsx
-/output/*
+*.mid
 /node_modules
