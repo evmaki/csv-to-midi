@@ -140,10 +140,6 @@ if (filename == undefined) {
 }
 else {
   importCsv(filename, function(data, bounds) {
-    var track = new mw.Track()
-    track.addEvent(new mw.NoteEvent({pitch: 'C5', duration: '4', wait: 'T4550'}))
-    track.addEvent(new mw.NoteEvent({pitch: 'C5', duration: '4', wait: 'T5000'}))
-    writeTrack(track, '../../output/foo.mid')
-    //generateMidi(data, bounds, {noteVar: 'level', filename: filename, key: 'C# mixolydian'})
+    generateMidi(data, bounds, {noteVar: 'level', filename: filename, key: 'C# mixolydian'})
   })
 }
