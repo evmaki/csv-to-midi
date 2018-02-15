@@ -1,0 +1,176 @@
+body, input, h1, h2, h3, h4, h5, h6,
+p, blockquote, pre, hr,
+dl, dd, ol, ul, figure, svg {
+  margin: 0;
+  padding: 0;
+}
+
+body, input {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-weight: 200;
+  color: #2f2f2f;
+}
+
+h1 {
+  font-size: 24px;
+}
+
+.brand, .brand:hover {
+  text-decoration: none;
+  color: #2f2f2f;
+}
+
+a:hover {
+  color: #4ad4ff;
+}
+
+a:visited {
+  color: #2f2f2f;
+}
+
+.wrapper {
+  width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.header, .footer {
+  margin-top: 1em;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.header {
+  justify-content: space-between;
+}
+
+.footer {
+  justify-content: flex-end;
+  font-size: 12px;
+}
+
+/*
+  Upload pane
+*/
+.upload-pane {
+  border-top: 2px solid #eeeeee;
+  margin-top: 3em;
+  display: grid;
+  justify-content: space-between;
+  align-items: center;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+.upload-button {
+  grid-column: 1;
+  cursor: pointer;
+}
+
+.upload-filename {
+  grid-column: 2;
+  justify-self: center;
+}
+
+.upload-entrycount {
+  grid-column: 3;
+  justify-self: right;
+}
+
+/*
+  Forms and buttons
+*/
+input[type="file"] {
+  display: none;
+}
+
+.button {
+  padding: 3px;
+}
+
+/*
+  Work pane
+*/
+.work-pane {
+  background-color: #eeeeee;
+}
+
+.work-pane canvas{
+  margin-top: 1em;
+}
+
+.csv {
+  padding: 5px;
+  font-size: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  width: 790px;
+}
+
+.csv-startmessage {
+  font-size: 16px;
+  height: 40px;
+  text-align: center;
+  align-items: center;
+}
+
+.csv-headers {
+  font-weight: 700;
+  margin-bottom: 5px;
+}
+
+.csv-row {
+  display: flex;
+  width: 100%;
+}
+
+.csv-item {
+  padding-left: 2px;
+  overflow: hidden;
+  width: 100px;
+  height: 14px;
+}
+
+.settings {
+  padding: 5px;
+  display: grid;
+  grid-template-columns: 33% 33% 33%;
+  background-color: #cccccc;
+}
+
+.settings-section {
+  border-right: 1px dashed #bbbbbb;
+  margin-right: 5px;
+}
+
+.settings-section p {
+  margin-bottom: 5px;
+  font-weight: 400;
+}
+
+.settings-subsection {
+  font-size: 12px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.settings-subsection label {
+  width: 50%;
+}
+
+.settings-subsection select {
+  width: 95%;
+}
+
+.save-button {
+  cursor: pointer;
+}
+
+/*
+  Other
+*/
+.icon svg {
+  width: 16px;
+  height: 16px;
+}
