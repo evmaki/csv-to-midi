@@ -41,6 +41,12 @@
           <label>
             time:
             <select v-model="params.timeColumn">
+              <option value="sequential">
+                sequential (legato sequence in order of rows)
+              </option>
+              <option disabled>
+                ---
+              </option>
               <option v-for="option in timeOptions" :value="option">
                 {{ option }}
               </option>
@@ -49,6 +55,15 @@
           <label>
             duration:
             <select v-model="params.duraColumn">
+              <option disabled>
+                fixed durations
+              </option>
+              <option v-for="item in durations" :value="item">
+                {{ item }}
+              </option>
+              <option disabled>
+                ---
+              </option>
               <option v-for="(key, value) in csv[0]" v-if="!isValidTime(key)" :value="value">
                 {{ value }}
               </option>
@@ -92,7 +107,7 @@ var moment = require('moment')
 
 export default {
   name: 'work-pane',
-  props: ['csv', 'bounds'],
+  props: ['csv', 'bounds', 'filename'],
   data () {
     return {
       noteSequence: [],
@@ -103,18 +118,19 @@ export default {
         range: 2,
         noteColumn: undefined, // determines pitch/note
         veloColumn: undefined, // determines velocity
-        timeColumn: undefined, // determines time (which tick to sound the note on)
-        duraColumn: undefined, // determines note duration
+        timeColumn: 'sequential', // determines time (which tick to sound the note on)
+        duraColumn: '4',       // determines note duration
         ppq: 128,
         bars: 128
-      }
+      },
+      durations: ['64', '32', '16t', '16', 'd8', '8t', '8', 'd4', '4t', '4', 'd2', '2', '1']
     }
   },
   methods: {
     buildNoteSequence () {
       console.log('generating note sequence from parameters...')
-      console.log(this.bounds)
-      console.log(this.params)
+
+      this.noteSequence = []
 
       var notes = this.getNoteRange(this.params.key, this.params.scale, this.params.octave, this.params.range)
 
@@ -127,7 +143,7 @@ export default {
         })
       }
 
-      console.log(this.noteSequence)
+      this.generateMidi()
     },
     getNote (value, notes) {
       return notes[Math.floor(this.rescale(value, 0, notes.length-1, this.bounds[this.params.noteColumn]))]
@@ -135,57 +151,73 @@ export default {
     getVelocity (value) {
       return Math.floor(this.rescale(value, 0, 100, this.bounds[this.params.veloColumn]))
     },
-    getDuration (value) {
-      return '4'
+    getDuration (value) { // TODO this will get buggy if a column has the same name as a duration
+      if (value == undefined) {
+        return this.params.duraColumn
+      }
+      return this.durations[Math.floor(this.rescale(value, 0, this.durations.length-1, this.bounds[this.params.duraColumn]))]
     },
-    getTime (value) {
-      console.log(value)
-      return '1T'
+    getTime (value) {     // TODO this will get buggy if a column is named "sequential"
+      if (value == undefined) {
+        return undefined
+      }
+
+      var ms = new Date(value).getTime()
+
+      return Math.floor(this.rescale(ms, 0, this.params.ppq*this.params.bars, {
+        min: new Date(this.bounds[this.params.timeColumn]['min']).getTime(),
+        max: new Date(this.bounds[this.params.timeColumn]['max']).getTime()
+      }))
     },
     generateMidi () {
       console.log('generating midi...')
-/*
-      var veloColumn = this.params.veloColumn || Object.keys(bounds)[0]
-      var noteColumn = this.params.noteColumn || Object.keys(bounds)[0]
-      var timeColumn = this.params.timeColumn
 
-      var key = this.params.key + ' ' + this.params.scale || 'C major'
-      var range = this.params.range || 2
-      var oct = this.params.oct || 4
-      var ppq = this.params.ppw || 256
-      var bars = this.params.bars || 128
-      var duration = this.params.duration || '8'
+      var track = new mw.Track(), wait
 
-      console.log('key          : ' + key)
-      console.log('octave       : ' + oct)
-      console.log('range        : ' + range + '\n')
-
-      console.log('velocity var : ' + velVar)
-      console.log('note var     : ' + noteVar)
-      console.log('time var     : ' + timeVar + '\n')
-
-      var track = new mw.Track(), notes = getNoteRange(key, oct, range)
-      var wait, note, vel
-
-      for (var i = 0, len = data.length; i < len; i++) {
-        note = Math.floor(rescale(data[i][noteVar], 0, notes.length, bounds[noteVar]))
-
+      for (var i = 0, len = this.noteSequence.length; i < len; i++) {
         // calculate appropriate wait time between notes
-        // data needs to be in order for this to be correct
-        if (i == 0 || timeVar == undefined) {
+        if (i == 0 || this.noteSequence[i]['time'] == undefined) {
           wait = '0'
         }
-        else {
-          vel = Math.floor(rescale(data[i][velVar], 0, 100, bounds[velVar]))
-          wait = Math.floor(rescale(data[i][timeVar], 0, ppq*bars, bounds[timeVar]) - rescale(data[i-1][timeVar], 0, ppq*bars, bounds[timeVar]))
-          //console.log(wait)
+        else if (this.noteSequence[i]['time'] != undefined) {
+          wait = this.noteSequence[i]['time'] - this.noteSequence[i-1]['time']
         }
 
-        track.addEvent(new mw.NoteEvent({pitch: notes[note], duration: duration, velocity: vel, wait: 'T' + wait}))
+        track.addEvent(new mw.NoteEvent({
+          pitch: this.noteSequence[i]['note'],
+          duration: this.noteSequence[i]['duration'],
+          velocity: this.noteSequence[i]['velocity'],
+          wait: 'T' + wait
+        }))
       }
 
-      //writeTrack(track, '../../output/' + filename + '.mid')
-      */
+      this.downloadTrack(track)
+    },
+    downloadTrack (track) {
+      var write = new mw.Writer([track])
+      var data = write.buildFile()
+      var filename = this.filename + '.mid'
+
+      var blob = new Blob([data], {
+          type: 'audio/midi'
+      })
+
+      var URL = window.URL || window.webkitURL
+      var downloadUrl = URL.createObjectURL(blob)
+
+      if (filename) {
+        var a = document.createElement('a')
+
+        if (typeof a.download === 'undefined') {
+          window.location = downloadUrl
+        }
+        else {
+          a.href = downloadUrl
+          a.download = filename
+          document.body.appendChild(a)
+          a.click()
+        }
+      }
     },
     getNoteRange (key, scale, octave, range) {
       var tmp = Scale.notes(key + ' ' + scale), ary = [], keyLength = tmp.length

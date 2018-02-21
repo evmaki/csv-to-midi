@@ -20,7 +20,7 @@
       </a>
     </div>
     <upload-pane :entries="csv.length"></upload-pane>
-    <work-pane :csv="csv" :bounds="bounds"></work-pane>
+    <work-pane :csv="csv" :bounds="bounds" :filename="filename"></work-pane>
     <div class="footer">
     </div>
   </div>
@@ -42,12 +42,14 @@ export default {
   data () {
     return {
       csv: [],
-      bounds: []
+      bounds: [],
+      filename: ''
     }
   },
   created () {
     this.$on('fileLoaded', function (e) {
       this.parseFile(e.result, this.parseCompleteCallback)
+      this.filename = e.filename
     })
   },
   methods: {
