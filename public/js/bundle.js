@@ -11560,6 +11560,9 @@ var moment = __webpack_require__(0)
   },
   methods: {
     parseFile (csvString) {
+      this.csv = {}
+      this.stats = {}
+      
       fastCsv.fromString(csvString, { headers: true })
         .on('data', this.parseRow)
         .on('end', this.parseCompleteCallback)
@@ -11612,6 +11615,8 @@ var moment = __webpack_require__(0)
       // https://stackoverflow.com/questions/45551588/vue-component-props-not-watching-object-changes-properly
       this.csv = Object.assign({}, this.csv)
       this.stats = Object.assign({}, this.stats)
+
+      console.log(this.csv)
     },
   },
   computed: {
