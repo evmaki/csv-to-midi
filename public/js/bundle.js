@@ -11475,6 +11475,32 @@ function simpleEnd(buf) {
 "use strict";
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__upload_pane_vue__ = __webpack_require__(159);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__work_pane_vue__ = __webpack_require__(161);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__modal_vue__ = __webpack_require__(213);
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
 //
 //
 //
@@ -11507,83 +11533,93 @@ function simpleEnd(buf) {
 
 
 
-var csv = __webpack_require__(175)
+
+var fastCsv = __webpack_require__(175)
 var moment = __webpack_require__(0)
 
 /* harmony default export */ __webpack_exports__["a"] = ({
   name: 'app',
   components: {
     [__WEBPACK_IMPORTED_MODULE_0__upload_pane_vue__["a" /* default */].name]: __WEBPACK_IMPORTED_MODULE_0__upload_pane_vue__["a" /* default */],
-    [__WEBPACK_IMPORTED_MODULE_1__work_pane_vue__["a" /* default */].name]: __WEBPACK_IMPORTED_MODULE_1__work_pane_vue__["a" /* default */]
+    [__WEBPACK_IMPORTED_MODULE_1__work_pane_vue__["a" /* default */].name]: __WEBPACK_IMPORTED_MODULE_1__work_pane_vue__["a" /* default */],
+    [__WEBPACK_IMPORTED_MODULE_2__modal_vue__["a" /* default */].name]: __WEBPACK_IMPORTED_MODULE_2__modal_vue__["a" /* default */]
   },
   data () {
     return {
-      csv: [],
-      bounds: [],
-      filename: ''
+      csv: {},
+      stats: [],
+      filename: '',
+      showHelp: false
     }
   },
   created () {
     this.$on('fileLoaded', function (e) {
-      this.parseFile(e.result, this.parseCompleteCallback)
+      this.parseFile(e.result)
       this.filename = e.filename
     })
   },
   methods: {
-    parseFile (csvString, callback) {
-      var data = []
-      var bounds = []
-
-      csv
-        .fromString(csvString, {headers: true})
-        .on('data', function (row) {
-          var parsedRow = {}
-
-          // update (min, max) bounds for each value in the current row
-          // this helps us discretize data later on when choosing appropriate midi values
-          var val
-          for (let key in row) {  // iterate over every element in the current row
-            if (!isNaN(row[key]) && row[key] != '') { // is the current element a number?
-              val = parseFloat(row[key])
-              parsedRow[key] = val
-
-              if (bounds[key] == undefined) {
-                bounds[key] = { min: val, max: val }
-              }
-              else if (val < bounds[key].min) {
-                bounds[key].min = val
-              }
-              else if (val > bounds[key].max) {
-                bounds[key].max = val
-              }
-            }
-            else if (moment(row[key]).isValid()) {  // is the current element a UTC time?
-              val = new Date(row[key]).getTime()
-              parsedRow[key] = row[key]
-
-              if (bounds[key] == undefined) {
-                bounds[key] = { min: val, max: val }
-              }
-              else if (val < bounds[key].min) {
-                bounds[key].min = val
-              }
-              else if (val > bounds[key].max) {
-                bounds[key].max = val
-              }
-            }
-            else {
-              parsedRow[key] = ''
-            }
-          }
-          data.push(parsedRow)
-        })
-        .on('end', function () {
-          callback(data, bounds)
-        })
+    parseFile (csvString) {
+      fastCsv.fromString(csvString, { headers: true })
+        .on('data', this.parseRow)
+        .on('end', this.parseCompleteCallback)
     },
-    parseCompleteCallback (data, bounds) {
-      this.csv = data
-      this.bounds = bounds
+    parseRow (row) {
+      var val
+
+      for (let key in row) {
+        if (!isNaN(row[key]) && row[key] != '') { // is the current element a number?
+          val = parseFloat(row[key])
+          this.stats[key] = this.updateStats(this.stats[key], val)
+        }
+        else if (moment(row[key]).isValid()) {    // is the current element a UTC time?
+          val = row[key]
+          this.stats[key] = this.updateStats(this.stats[key], new Date(row[key]).getTime())
+        }
+        else {
+          val = ''
+        }
+
+        if (this.csv[key] == undefined) {
+          this.csv[key] = []
+        }
+
+        this.csv[key].push(val)
+      }
+    },
+    updateStats (stat, val) {
+      if (stat == undefined) {
+        stat = { min: val, max: val, sum: 0 }
+      }
+      else if (val < stat['min']) {
+        stat['min'] = val
+      }
+      else if (val > stat['max']) {
+        stat['max'] = val
+      }
+
+      stat['sum'] += val
+      return stat
+    },
+    parseCompleteCallback () {
+      for (let key in this.csv) {
+        if (this.stats[key] == undefined) {   // remove non-numeric columns from dataset
+          delete this.csv[key]
+          console.log('removing non-numeric ' + key + ' vector from dataset')
+        }
+      }
+      // ensure underlying Vue components see the update
+      // https://stackoverflow.com/questions/45551588/vue-component-props-not-watching-object-changes-properly
+      this.csv = Object.assign({}, this.csv)
+      this.stats = Object.assign({}, this.stats)
+    },
+  },
+  computed: {
+    entries: function () {
+      if (Object.keys(this.csv).length > 0) {
+        return this.csv[Object.keys(this.csv)[0]].length  // length of first column
+      }
+      return 0
     }
   }
 });
@@ -11743,6 +11779,18 @@ var moment = __webpack_require__(0)
 //
 //
 //
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
 
 
 
@@ -11751,57 +11799,68 @@ var moment = __webpack_require__(0)
 
 /* harmony default export */ __webpack_exports__["a"] = ({
   name: 'work-pane',
-  props: ['csv', 'bounds', 'filename'],
+  props: ['csv', 'stats', 'filename'],
   data () {
     return {
       noteSequence: [],
-      params : {
-        key: 'C',
-        scale: 'major',
-        octave: 4,
-        range: 2,
-        noteColumn: undefined, // determines pitch/note
-        veloColumn: undefined, // determines velocity
-        timeColumn: 'sequential', // determines time (which tick to sound the note on)
-        duraColumn: '4',       // determines note duration
-        ppq: 128,
-        bars: 128
-      },
+      params: {}, // params are set in the reset method when the csv watcher is first triggered
       durations: ['64', '32', '16t', '16', 'd8', '8t', '8', 'd4', '4t', '4', 'd2', '2', '1']
     }
   },
   methods: {
+    /*
+      built-in values are mixed with user-dependent values (based on the imported dataset)
+      in the time and duration <select> dropdowns, so we use flags to specify whether
+      the chosen value should be treated as a built-in time or duration, or as a column
+      in the user's dataset. this avoids collisions between possible column names and any
+      sort of built-in name we might specify for the option in the dropdown
+    */
+    updateBuiltin (e) {
+      if (e.target.selectedOptions[0].attributes['data-builtin'] != undefined) {
+        this.params.builtIn[e.target.name] = true
+      }
+      else {
+         this.params.builtIn[e.target.name] = false
+      }
+      console.log(this.params.builtIn[e.target.name] + ' ' + e.target.name)
+    },
     buildNoteSequence () {
       console.log('generating note sequence from parameters...')
 
       this.noteSequence = []
 
       var notes = this.getNoteRange(this.params.key, this.params.scale, this.params.octave, this.params.range)
+      var len = this.csv[Object.keys(this.csv)[0]].length
 
-      for (var i = 0, len = this.csv.length; i < len; i++) {
+      for (var i = 0; i < len; i++) {
         this.noteSequence.push({
-          time: this.getTime(this.csv[i][this.params.timeColumn]),
-          note: this.getNote(this.csv[i][this.params.noteColumn], notes),
-          velocity: this.getVelocity(this.csv[i][this.params.veloColumn]),
-          duration: this.getDuration(this.csv[i][this.params.duraColumn]),
+          time: (this.params.builtIn['time']
+            ? undefined
+            : this.getTime(this.csv[this.params.timeColumn][i])
+          ),
+          note: this.getNote(this.csv[this.params.noteColumn][i], notes),
+          velocity: this.getVelocity(this.csv[this.params.veloColumn][i]),
+          duration: (this.params.builtIn['duration']
+            ? this.params.duraColumn
+            : this.getDuration(this.csv[this.params.duraColumn][i])),
         })
       }
 
       this.generateMidi()
     },
     getNote (value, notes) {
-      return notes[Math.floor(this.rescale(value, 0, notes.length-1, this.bounds[this.params.noteColumn]))]
+      return notes[Math.floor(this.rescale(value, 0, notes.length-1, this.stats[this.params.noteColumn]))]
     },
     getVelocity (value) {
-      return Math.floor(this.rescale(value, 0, 100, this.bounds[this.params.veloColumn]))
+      return Math.floor(this.rescale(value, 0, 100, this.stats[this.params.veloColumn]))
     },
-    getDuration (value) { // TODO this will get buggy if a column has the same name as a duration
+    getDuration (value) {
       if (value == undefined) {
         return this.params.duraColumn
       }
-      return this.durations[Math.floor(this.rescale(value, 0, this.durations.length-1, this.bounds[this.params.duraColumn]))]
+      return this.durations[Math.floor(this.rescale(value, 0, this.durations.length-1, this.stats[this.params.duraColumn]))]
     },
-    getTime (value) {     // TODO this will get buggy if a column is named "sequential"
+    getTime (value) {
       if (value == undefined) {
         return undefined
       }
@@ -11809,8 +11868,8 @@ var moment = __webpack_require__(0)
       var ms = new Date(value).getTime()
 
       return Math.floor(this.rescale(ms, 0, this.params.ppq*this.params.bars, {
-        min: new Date(this.bounds[this.params.timeColumn]['min']).getTime(),
-        max: new Date(this.bounds[this.params.timeColumn]['max']).getTime()
+        min: new Date(this.stats[this.params.timeColumn]['min']).getTime(),
+        max: new Date(this.stats[this.params.timeColumn]['max']).getTime()
       }))
     },
     generateMidi () {
@@ -11885,11 +11944,37 @@ var moment = __webpack_require__(0)
     },
     isValidTime (str) {
       return moment(str).isValid() && isNaN(str)
+    },
+    reset () {
+      this.noteSequence = []
+
+      return {
+        key: 'C',
+        scale: 'major',
+        octave: 4,
+        range: 2,
+        noteColumn: undefined, // determines pitch/note
+        veloColumn: undefined, // determines velocity
+        timeColumn: undefined, // determines time (which tick to sound the note on)
+        duraColumn: undefined, // determines note duration
+        builtIn: {
+          time: true,
+          duration: true
+        },
+        ppq: 128,
+        bars: 128
+      }
     }
   },
   computed: {
     preview: function () {
-      return this.csv.slice(0, 10)
+      var preview = {}
+
+      for (let key in this.csv) {
+        preview[key] = this.csv[key].slice(0, 10)
+      }
+
+      return preview
     },
     scales: function () {
       return __WEBPACK_IMPORTED_MODULE_0_tonal__["a" /* Scale */].names()
@@ -11897,16 +11982,33 @@ var moment = __webpack_require__(0)
     keys: function () {
       return __WEBPACK_IMPORTED_MODULE_0_tonal__["a" /* Scale */].notes('C chromatic')
     },
-    timeOptions: function () {
+    timeOptions: function () {    // TODO only checks if first element is valid
       var ary = []
 
-      for (let key in this.csv[0]) {
-        if (this.isValidTime(this.csv[0][key])) {
+      for (let key in this.csv) {
+        if (this.isValidTime(this.csv[key][0])) {
           ary.push(key)
         }
       }
 
       return ary
+    },
+    numericOptions: function () {
+      var ary = []
+
+      for (let key in this.csv) {
+        if (!this.isValidTime(this.csv[key][0])) {
+          ary.push(key)
+        }
+      }
+
+      return ary
+    }
+  },
+  watch: {
+    'csv': function () {
+      console.log('csv updated')
+      this.params = this.reset()
     }
   }
 });
@@ -28371,48 +28473,34 @@ var render = function() {
   var _h = _vm.$createElement
   var _c = _vm._self._c || _h
   return _c("div", { staticClass: "work-pane" }, [
-    _vm.csv.length
+    Object.keys(_vm.csv).length
       ? _c(
           "div",
           { staticClass: "csv" },
-          [
-            _c(
+          _vm._l(_vm.preview, function(values, key) {
+            return _c(
               "div",
-              { staticClass: "csv-row csv-headers" },
-              _vm._l(_vm.csv[0], function(key, value) {
-                return _c("div", { staticClass: "csv-item" }, [
-                  _vm._v(_vm._s(value))
-                ])
-              })
-            ),
-            _vm._v(" "),
-            _vm._l(_vm.preview, function(entry) {
-              return _c(
-                "div",
-                { staticClass: "csv-row" },
-                _vm._l(entry, function(key, value) {
+              { staticClass: "csv-column" },
+              [
+                _c("div", { staticClass: "csv-item csv-header" }, [
+                  _vm._v("\n        " + _vm._s(key) + "\n      ")
+                ]),
+                _vm._v(" "),
+                _vm._l(values, function(value) {
                   return _c("div", { staticClass: "csv-item" }, [
-                    _vm._v("\n        " + _vm._s(key) + "\n      ")
+                    _vm._v("\n        " + _vm._s(value) + "\n      ")
                   ])
                 })
-              )
-            }),
-            _vm._v(" "),
-            _c(
-              "div",
-              { staticClass: "csv-row" },
-              _vm._l(_vm.csv[0], function(key, value) {
-                return _c("div", { staticClass: "csv-item" }, [_vm._v("...")])
-              })
+              ],
+              2
             )
-          ],
-          2
+          })
         )
       : _c("div", { staticClass: "csv-startmessage" }, [
           _vm._v("\n    open a csv file to get started.\n  ")
         ]),
     _vm._v(" "),
-    _vm.csv[0]
+    Object.keys(_vm.csv).length
       ? _c("div", { staticClass: "settings" }, [
           _c("div", { staticClass: "settings-section" }, [
             _c("p", [_vm._v("column mappings")]),
@@ -28451,16 +28539,12 @@ var render = function() {
                       }
                     }
                   },
-                  _vm._l(_vm.csv[0], function(key, value) {
-                    return !_vm.isValidTime(key)
-                      ? _c("option", { domProps: { value: value } }, [
-                          _vm._v(
-                            "\n              " +
-                              _vm._s(value) +
-                              "\n            "
-                          )
-                        ])
-                      : _vm._e()
+                  _vm._l(_vm.numericOptions, function(option) {
+                    return _c("option", { domProps: { value: option } }, [
+                      _vm._v(
+                        "\n              " + _vm._s(option) + "\n            "
+                      )
+                    ])
                   })
                 )
               ]),
@@ -28498,16 +28582,12 @@ var render = function() {
                       }
                     }
                   },
-                  _vm._l(_vm.csv[0], function(key, value) {
-                    return !_vm.isValidTime(key)
-                      ? _c("option", { domProps: { value: value } }, [
-                          _vm._v(
-                            "\n              " +
-                              _vm._s(value) +
-                              "\n            "
-                          )
-                        ])
-                      : _vm._e()
+                  _vm._l(_vm.numericOptions, function(option) {
+                    return _c("option", { domProps: { value: option } }, [
+                      _vm._v(
+                        "\n              " + _vm._s(option) + "\n            "
+                      )
+                    ])
                   })
                 )
               ])
@@ -28527,28 +28607,32 @@ var render = function() {
                         expression: "params.timeColumn"
                       }
                     ],
+                    attrs: { name: "time" },
                     on: {
-                      change: function($event) {
-                        var $$selectedVal = Array.prototype.filter
-                          .call($event.target.options, function(o) {
-                            return o.selected
-                          })
-                          .map(function(o) {
-                            var val = "_value" in o ? o._value : o.value
-                            return val
-                          })
-                        _vm.$set(
-                          _vm.params,
-                          "timeColumn",
-                          $event.target.multiple
-                            ? $$selectedVal
-                            : $$selectedVal[0]
-                        )
-                      }
+                      change: [
+                        function($event) {
+                          var $$selectedVal = Array.prototype.filter
+                            .call($event.target.options, function(o) {
+                              return o.selected
+                            })
+                            .map(function(o) {
+                              var val = "_value" in o ? o._value : o.value
+                              return val
+                            })
+                          _vm.$set(
+                            _vm.params,
+                            "timeColumn",
+                            $event.target.multiple
+                              ? $$selectedVal
+                              : $$selectedVal[0]
+                          )
+                        },
+                        _vm.updateBuiltin
+                      ]
                     }
                   },
                   [
-                    _c("option", { attrs: { value: "sequential" } }, [
+                    _c("option", { attrs: { "data-builtin": "" } }, [
                       _vm._v(
                         "\n              sequential (legato sequence in order of rows)\n            "
                       )
@@ -28583,24 +28667,28 @@ var render = function() {
                         expression: "params.duraColumn"
                       }
                     ],
+                    attrs: { name: "duration" },
                     on: {
-                      change: function($event) {
-                        var $$selectedVal = Array.prototype.filter
-                          .call($event.target.options, function(o) {
-                            return o.selected
-                          })
-                          .map(function(o) {
-                            var val = "_value" in o ? o._value : o.value
-                            return val
-                          })
-                        _vm.$set(
-                          _vm.params,
-                          "duraColumn",
-                          $event.target.multiple
-                            ? $$selectedVal
-                            : $$selectedVal[0]
-                        )
-                      }
+                      change: [
+                        function($event) {
+                          var $$selectedVal = Array.prototype.filter
+                            .call($event.target.options, function(o) {
+                              return o.selected
+                            })
+                            .map(function(o) {
+                              var val = "_value" in o ? o._value : o.value
+                              return val
+                            })
+                          _vm.$set(
+                            _vm.params,
+                            "duraColumn",
+                            $event.target.multiple
+                              ? $$selectedVal
+                              : $$selectedVal[0]
+                          )
+                        },
+                        _vm.updateBuiltin
+                      ]
                     }
                   },
                   [
@@ -28609,27 +28697,30 @@ var render = function() {
                     ]),
                     _vm._v(" "),
                     _vm._l(_vm.durations, function(item) {
-                      return _c("option", { domProps: { value: item } }, [
-                        _vm._v(
-                          "\n              " + _vm._s(item) + "\n            "
-                        )
-                      ])
+                      return _c(
+                        "option",
+                        {
+                          attrs: { "data-builtin": "" },
+                          domProps: { value: item }
+                        },
+                        [
+                          _vm._v(
+                            "\n              " + _vm._s(item) + "\n            "
+                          )
+                        ]
+                      )
                     }),
                     _vm._v(" "),
                     _c("option", { attrs: { disabled: "" } }, [
                       _vm._v("\n              ---\n            ")
                     ]),
                     _vm._v(" "),
-                    _vm._l(_vm.csv[0], function(key, value) {
-                      return !_vm.isValidTime(key)
-                        ? _c("option", { domProps: { value: value } }, [
-                            _vm._v(
-                              "\n              " +
-                                _vm._s(value) +
-                                "\n            "
-                            )
-                          ])
-                        : _vm._e()
+                    _vm._l(_vm.numericOptions, function(option) {
+                      return _c("option", { domProps: { value: option } }, [
+                        _vm._v(
+                          "\n              " + _vm._s(option) + "\n            "
+                        )
+                      ])
                     })
                   ],
                   2
@@ -28727,22 +28818,81 @@ var render = function() {
                   })
                 )
               ])
+            ]),
+            _vm._v(" "),
+            _c("div", { staticClass: "settings-subsection" }, [
+              _c("label", [
+                _vm._v(
+                  "\n          octave: (" +
+                    _vm._s(_vm.params.octave) +
+                    ")\n          "
+                ),
+                _c("input", {
+                  directives: [
+                    {
+                      name: "model",
+                      rawName: "v-model",
+                      value: _vm.params.octave,
+                      expression: "params.octave"
+                    }
+                  ],
+                  attrs: { type: "range", min: "0", max: "10", step: "1" },
+                  domProps: { value: _vm.params.octave },
+                  on: {
+                    __r: function($event) {
+                      _vm.$set(_vm.params, "octave", $event.target.value)
+                    }
+                  }
+                })
+              ]),
+              _vm._v(" "),
+              _c("label", [
+                _vm._v(
+                  "\n          range: (" +
+                    _vm._s(_vm.params.range) +
+                    ")\n          "
+                ),
+                _c("input", {
+                  directives: [
+                    {
+                      name: "model",
+                      rawName: "v-model",
+                      value: _vm.params.range,
+                      expression: "params.range"
+                    }
+                  ],
+                  attrs: { type: "range", min: "1", max: "5", step: "1" },
+                  domProps: { value: _vm.params.range },
+                  on: {
+                    __r: function($event) {
+                      _vm.$set(_vm.params, "range", $event.target.value)
+                    }
+                  }
+                })
+              ])
             ])
           ]),
           _vm._v(" "),
-          _c(
-            "label",
-            {
-              staticClass: "save-button",
-              attrs: { title: "save midi" },
-              on: {
-                click: function($event) {
-                  _vm.buildNoteSequence()
+          _c("div", { staticClass: "save-section" }, [
+            _c(
+              "button",
+              {
+                staticClass: "save-button",
+                attrs: {
+                  title: "save midi",
+                  disabled:
+                    _vm.params.noteColumn == undefined ||
+                    _vm.params.veloColumn == undefined
+                },
+                on: {
+                  click: function($event) {
+                    _vm.buildNoteSequence()
+                  }
                 }
-              }
-            },
-            [_vm._v("\n        💾\n      ")]
-          )
+              },
+              [_vm._v("\n        💾\n      ")]
+            )
+          ])
         ])
       : _vm._e()
   ])
@@ -33526,33 +33676,118 @@ var render = function() {
       _c("div", { staticClass: "header" }, [
         _vm._m(0),
         _vm._v(" "),
-        _c("a", { attrs: { href: "https://github.com/evmaki/csv-to-midi" } }, [
-          _c("span", { staticClass: "icon" }, [
-            _c(
-              "svg",
-              {
-                attrs: { width: "24px", height: "24px", viewBox: "0 0 24 24" }
-              },
-              [
-                _c("path", {
-                  attrs: {
-                    d:
-                      "M19,0H5C2.239,0,0,2.239,0,5v14c0,2.761,2.239,5,5,5h3.76c-0.001-0.354-0.012-1.117-0.017-2.129\n            C5.107,22.66,4.341,20.12,4.341,20.12c-0.595-1.509-1.452-1.912-1.452-1.912c-1.187-0.811,0.089-0.795,0.089-0.795\n            c1.312,0.092,2.002,1.347,2.002,1.347c1.166,1.998,3.059,1.421,3.803,1.087c0.12-0.845,0.457-1.42,0.831-1.748\n            c-2.902-0.33-5.952-1.45-5.952-6.459c0-1.426,0.509-2.594,1.346-3.506C4.873,7.801,4.423,6.472,5.137,4.674\n            c0,0,1.098-0.352,3.594,1.341C9.772,5.723,10.89,5.578,12,5.574c1.11,0.004,2.228,0.149,3.272,0.439\n            c2.497-1.69,3.592-1.34,3.592-1.34c0.712,1.799,0.264,3.127,0.129,3.459c0.837,0.913,1.345,2.079,1.345,3.506\n            c0,5.021-3.056,6.126-5.967,6.449c0.47,0.404,0.887,1.201,0.887,2.419c0,1.648-0.015,2.986-0.017,3.494H19c2.762,0,5-2.239,5-5V5\n            C24,2.239,21.762,0,19,0z"
-                  }
-                })
-              ]
-            )
-          ])
+        _c("div", { staticClass: "header-buttons" }, [
+          _c(
+            "button",
+            {
+              staticClass: "help-button",
+              attrs: { title: "help" },
+              on: {
+                click: function($event) {
+                  _vm.showHelp = true
+                }
+              }
+            },
+            [_vm._v("\n        ?\n      ")]
+          )
         ])
       ]),
       _vm._v(" "),
-      _c("upload-pane", { attrs: { entries: _vm.csv.length } }),
+      _c("upload-pane", { attrs: { entries: _vm.entries } }),
       _vm._v(" "),
       _c("work-pane", {
-        attrs: { csv: _vm.csv, bounds: _vm.bounds, filename: _vm.filename }
+        attrs: { csv: _vm.csv, stats: _vm.stats, filename: _vm.filename }
       }),
       _vm._v(" "),
-      _c("div", { staticClass: "footer" })
+      _c("div", { staticClass: "footer" }),
+      _vm._v(" "),
+      _vm.showHelp
+        ? _c(
+            "modal",
+            {
+              on: {
+                close: function($event) {
+                  _vm.showHelp = false
+                }
+              }
+            },
+            [
+              _c("h3", { attrs: { slot: "header" }, slot: "header" }, [
+                _vm._v("what is this?")
+              ]),
+              _vm._v(" "),
+              _c("div", { attrs: { slot: "body" }, slot: "body" }, [
+                _c("p", [
+                  _vm._v(
+                    "\n        csv-to-midi converts csv datasets to midi sequences.\n        "
+                  )
+                ]),
+                _c("p", [
+                  _vm._v(
+                    "\n          each row in the dataset generates a single note. change "
+                  ),
+                  _c("i", [_vm._v("column mappings")]),
+                  _vm._v(
+                    "\n          to alter the timing and voicing of notes based on the data present in a chosen column.\n          change "
+                  ),
+                  _c("i", [_vm._v("tonality")]),
+                  _vm._v(
+                    " parameters to specify the key and octave\n          range of notes in the generated sequence.\n        "
+                  )
+                ]),
+                _c("p"),
+                _vm._v(" "),
+                _c("p"),
+                _c("h4", [_vm._v("step by step:")]),
+                _c("p"),
+                _vm._v(" "),
+                _c("ol", [
+                  _c("li", [
+                    _vm._v(
+                      "load a csv dataset WITH HEADERS (it needs headers!)"
+                    )
+                  ]),
+                  _vm._v(" "),
+                  _c("li", [
+                    _vm._v("assign columns to each sequence parameter")
+                  ]),
+                  _vm._v(" "),
+                  _c("ul", [
+                    _c("li", [
+                      _c("b", [_vm._v("note:")]),
+                      _vm._v(" element value determines scale degree (note)")
+                    ]),
+                    _vm._v(" "),
+                    _c("li", [
+                      _c("b", [_vm._v("velocity:")]),
+                      _vm._v(" determines note velocity")
+                    ]),
+                    _vm._v(" "),
+                    _c("li", [
+                      _c("b", [_vm._v("time:")]),
+                      _vm._v(
+                        "\n            determines when the note will sound. only ordered datasets\n            (from earliest to latest) with time in UTC format currently\n            work for this mapping. otherwise, notes will be ordered in a\n            legato (no gaps) sequence.\n          "
+                      )
+                    ]),
+                    _vm._v(" "),
+                    _c("li", [
+                      _c("b", [_vm._v("duration:")]),
+                      _vm._v(
+                        " determines the length of the note, or choose from a\n            fixed duration for all notes from the given options."
+                      )
+                    ])
+                  ]),
+                  _vm._v(" "),
+                  _c("li", [
+                    _vm._v("tweak tonality parameters to your liking")
+                  ]),
+                  _vm._v(" "),
+                  _c("li", [_vm._v("save sequence")])
+                ])
+              ])
+            ]
+          )
+        : _vm._e()
     ],
     1
   )
@@ -33582,6 +33817,601 @@ if (false) {
   module.hot.accept()
   if (module.hot.data) {
     require("vue-hot-reload-api")      .rerender("data-v-483b9b06", { render: render, staticRenderFns: staticRenderFns })
+  }
+}
+
+/***/ }),
+/* 203 */,
+/* 204 */,
+/* 205 */,
+/* 206 */,
+/* 207 */,
+/* 208 */
+/***/ (function(module, exports) {
+
+/*
+	MIT License http://www.opensource.org/licenses/mit-license.php
+	Author Tobias Koppers @sokra
+*/
+// css base code, injected by the css-loader
+module.exports = function(useSourceMap) {
+	var list = [];
+
+	// return the list of modules as css string
+	list.toString = function toString() {
+		return this.map(function (item) {
+			var content = cssWithMappingToString(item, useSourceMap);
+			if(item[2]) {
+				return "@media " + item[2] + "{" + content + "}";
+			} else {
+				return content;
+			}
+		}).join("");
+	};
+
+	// import a list of modules into the list
+	list.i = function(modules, mediaQuery) {
+		if(typeof modules === "string")
+			modules = [[null, modules, ""]];
+		var alreadyImportedModules = {};
+		for(var i = 0; i < this.length; i++) {
+			var id = this[i][0];
+			if(typeof id === "number")
+				alreadyImportedModules[id] = true;
+		}
+		for(i = 0; i < modules.length; i++) {
+			var item = modules[i];
+			// skip already imported module
+			// this implementation is not 100% perfect for weird media query combinations
+			//  when a module is imported multiple times with different media queries.
+			//  I hope this will never occur (Hey this way we have smaller bundles)
+			if(typeof item[0] !== "number" || !alreadyImportedModules[item[0]]) {
+				if(mediaQuery && !item[2]) {
+					item[2] = mediaQuery;
+				} else if(mediaQuery) {
+					item[2] = "(" + item[2] + ") and (" + mediaQuery + ")";
+				}
+				list.push(item);
+			}
+		}
+	};
+	return list;
+};
+
+function cssWithMappingToString(item, useSourceMap) {
+	var content = item[1] || '';
+	var cssMapping = item[3];
+	if (!cssMapping) {
+		return content;
+	}
+
+	if (useSourceMap && typeof btoa === 'function') {
+		var sourceMapping = toComment(cssMapping);
+		var sourceURLs = cssMapping.sources.map(function (source) {
+			return '/*# sourceURL=' + cssMapping.sourceRoot + source + ' */'
+		});
+
+		return [content].concat(sourceURLs).concat([sourceMapping]).join('\n');
+	}
+
+	return [content].join('\n');
+}
+
+// Adapted from convert-source-map (MIT)
+function toComment(sourceMap) {
+	// eslint-disable-next-line no-undef
+	var base64 = btoa(unescape(encodeURIComponent(JSON.stringify(sourceMap))));
+	var data = 'sourceMappingURL=data:application/json;charset=utf-8;base64,' + base64;
+
+	return '/*# ' + data + ' */';
+}
+
+
+/***/ }),
+/* 209 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
+/* harmony export (immutable) */ __webpack_exports__["default"] = addStylesClient;
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__listToStyles__ = __webpack_require__(210);
+/*
+  MIT License http://www.opensource.org/licenses/mit-license.php
+  Author Tobias Koppers @sokra
+  Modified by Evan You @yyx990803
+*/
+
+
+
+var hasDocument = typeof document !== 'undefined'
+
+if (typeof DEBUG !== 'undefined' && DEBUG) {
+  if (!hasDocument) {
+    throw new Error(
+    'vue-style-loader cannot be used in a non-browser environment. ' +
+    "Use { target: 'node' } in your Webpack config to indicate a server-rendering environment."
+  ) }
+}
+
+/*
+type StyleObject = {
+  id: number;
+  parts: Array<StyleObjectPart>
+}
+
+type StyleObjectPart = {
+  css: string;
+  media: string;
+  sourceMap: ?string
+}
+*/
+
+var stylesInDom = {/*
+  [id: number]: {
+    id: number,
+    refs: number,
+    parts: Array<(obj?: StyleObjectPart) => void>
+  }
+*/}
+
+var head = hasDocument && (document.head || document.getElementsByTagName('head')[0])
+var singletonElement = null
+var singletonCounter = 0
+var isProduction = false
+var noop = function () {}
+var options = null
+var ssrIdKey = 'data-vue-ssr-id'
+
+// Force single-tag solution on IE6-9, which has a hard limit on the # of <style>
+// tags it will allow on a page
+var isOldIE = typeof navigator !== 'undefined' && /msie [6-9]\b/.test(navigator.userAgent.toLowerCase())
+
+function addStylesClient (parentId, list, _isProduction, _options) {
+  isProduction = _isProduction
+
+  options = _options || {}
+
+  var styles = Object(__WEBPACK_IMPORTED_MODULE_0__listToStyles__["a" /* default */])(parentId, list)
+  addStylesToDom(styles)
+
+  return function update (newList) {
+    var mayRemove = []
+    for (var i = 0; i < styles.length; i++) {
+      var item = styles[i]
+      var domStyle = stylesInDom[item.id]
+      domStyle.refs--
+      mayRemove.push(domStyle)
+    }
+    if (newList) {
+      styles = Object(__WEBPACK_IMPORTED_MODULE_0__listToStyles__["a" /* default */])(parentId, newList)
+      addStylesToDom(styles)
+    } else {
+      styles = []
+    }
+    for (var i = 0; i < mayRemove.length; i++) {
+      var domStyle = mayRemove[i]
+      if (domStyle.refs === 0) {
+        for (var j = 0; j < domStyle.parts.length; j++) {
+          domStyle.parts[j]()
+        }
+        delete stylesInDom[domStyle.id]
+      }
+    }
+  }
+}
+
+function addStylesToDom (styles /* Array<StyleObject> */) {
+  for (var i = 0; i < styles.length; i++) {
+    var item = styles[i]
+    var domStyle = stylesInDom[item.id]
+    if (domStyle) {
+      domStyle.refs++
+      for (var j = 0; j < domStyle.parts.length; j++) {
+        domStyle.parts[j](item.parts[j])
+      }
+      for (; j < item.parts.length; j++) {
+        domStyle.parts.push(addStyle(item.parts[j]))
+      }
+      if (domStyle.parts.length > item.parts.length) {
+        domStyle.parts.length = item.parts.length
+      }
+    } else {
+      var parts = []
+      for (var j = 0; j < item.parts.length; j++) {
+        parts.push(addStyle(item.parts[j]))
+      }
+      stylesInDom[item.id] = { id: item.id, refs: 1, parts: parts }
+    }
+  }
+}
+
+function createStyleElement () {
+  var styleElement = document.createElement('style')
+  styleElement.type = 'text/css'
+  head.appendChild(styleElement)
+  return styleElement
+}
+
+function addStyle (obj /* StyleObjectPart */) {
+  var update, remove
+  var styleElement = document.querySelector('style[' + ssrIdKey + '~="' + obj.id + '"]')
+
+  if (styleElement) {
+    if (isProduction) {
+      // has SSR styles and in production mode.
+      // simply do nothing.
+      return noop
+    } else {
+      // has SSR styles but in dev mode.
+      // for some reason Chrome can't handle source map in server-rendered
+      // style tags - source maps in <style> only works if the style tag is
+      // created and inserted dynamically. So we remove the server rendered
+      // styles and inject new ones.
+      styleElement.parentNode.removeChild(styleElement)
+    }
+  }
+
+  if (isOldIE) {
+    // use singleton mode for IE9.
+    var styleIndex = singletonCounter++
+    styleElement = singletonElement || (singletonElement = createStyleElement())
+    update = applyToSingletonTag.bind(null, styleElement, styleIndex, false)
+    remove = applyToSingletonTag.bind(null, styleElement, styleIndex, true)
+  } else {
+    // use multi-style-tag mode in all other cases
+    styleElement = createStyleElement()
+    update = applyToTag.bind(null, styleElement)
+    remove = function () {
+      styleElement.parentNode.removeChild(styleElement)
+    }
+  }
+
+  update(obj)
+
+  return function updateStyle (newObj /* StyleObjectPart */) {
+    if (newObj) {
+      if (newObj.css === obj.css &&
+          newObj.media === obj.media &&
+          newObj.sourceMap === obj.sourceMap) {
+        return
+      }
+      update(obj = newObj)
+    } else {
+      remove()
+    }
+  }
+}
+
+var replaceText = (function () {
+  var textStore = []
+
+  return function (index, replacement) {
+    textStore[index] = replacement
+    return textStore.filter(Boolean).join('\n')
+  }
+})()
+
+function applyToSingletonTag (styleElement, index, remove, obj) {
+  var css = remove ? '' : obj.css
+
+  if (styleElement.styleSheet) {
+    styleElement.styleSheet.cssText = replaceText(index, css)
+  } else {
+    var cssNode = document.createTextNode(css)
+    var childNodes = styleElement.childNodes
+    if (childNodes[index]) styleElement.removeChild(childNodes[index])
+    if (childNodes.length) {
+      styleElement.insertBefore(cssNode, childNodes[index])
+    } else {
+      styleElement.appendChild(cssNode)
+    }
+  }
+}
+
+function applyToTag (styleElement, obj) {
+  var css = obj.css
+  var media = obj.media
+  var sourceMap = obj.sourceMap
+
+  if (media) {
+    styleElement.setAttribute('media', media)
+  }
+  if (options.ssrId) {
+    styleElement.setAttribute(ssrIdKey, obj.id)
+  }
+
+  if (sourceMap) {
+    // https://developer.chrome.com/devtools/docs/javascript-debugging
+    // this makes source maps inside style tags work properly in Chrome
+    css += '\n/*# sourceURL=' + sourceMap.sources[0] + ' */'
+    // http://stackoverflow.com/a/26603875
+    css += '\n/*# sourceMappingURL=data:application/json;base64,' + btoa(unescape(encodeURIComponent(JSON.stringify(sourceMap)))) + ' */'
+  }
+
+  if (styleElement.styleSheet) {
+    styleElement.styleSheet.cssText = css
+  } else {
+    while (styleElement.firstChild) {
+      styleElement.removeChild(styleElement.firstChild)
+    }
+    styleElement.appendChild(document.createTextNode(css))
+  }
+}
+
+
+/***/ }),
+/* 210 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+/* harmony export (immutable) */ __webpack_exports__["a"] = listToStyles;
+/**
+ * Translates the list format produced by css-loader into something
+ * easier to manipulate.
+ */
+function listToStyles (parentId, list) {
+  var styles = []
+  var newStyles = {}
+  for (var i = 0; i < list.length; i++) {
+    var item = list[i]
+    var id = item[0]
+    var css = item[1]
+    var media = item[2]
+    var sourceMap = item[3]
+    var part = {
+      id: parentId + ':' + i,
+      css: css,
+      media: media,
+      sourceMap: sourceMap
+    }
+    if (!newStyles[id]) {
+      styles.push(newStyles[id] = { id: id, parts: [part] })
+    } else {
+      newStyles[id].parts.push(part)
+    }
+  }
+  return styles
+}
+
+
+/***/ }),
+/* 211 */,
+/* 212 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+
+/* harmony default export */ __webpack_exports__["a"] = ({
+  name: 'modal'
+});
+
+
+/***/ }),
+/* 213 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__node_modules_vue_loader_lib_selector_type_script_index_0_modal_vue__ = __webpack_require__(212);
+/* unused harmony namespace reexport */
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__node_modules_vue_loader_lib_template_compiler_index_id_data_v_59f9e7ee_hasScoped_true_buble_transforms_node_modules_vue_loader_lib_selector_type_template_index_0_modal_vue__ = __webpack_require__(216);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__node_modules_vue_loader_lib_runtime_component_normalizer__ = __webpack_require__(17);
+var disposed = false
+function injectStyle (context) {
+  if (disposed) return
+  __webpack_require__(214)
+}
+/* script */
+
+
+/* template */
+
+/* template functional */
+var __vue_template_functional__ = false
+/* styles */
+var __vue_styles__ = injectStyle
+/* scopeId */
+var __vue_scopeId__ = "data-v-59f9e7ee"
+/* moduleIdentifier (server only) */
+var __vue_module_identifier__ = null
+
+var Component = Object(__WEBPACK_IMPORTED_MODULE_2__node_modules_vue_loader_lib_runtime_component_normalizer__["a" /* default */])(
+  __WEBPACK_IMPORTED_MODULE_0__node_modules_vue_loader_lib_selector_type_script_index_0_modal_vue__["a" /* default */],
+  __WEBPACK_IMPORTED_MODULE_1__node_modules_vue_loader_lib_template_compiler_index_id_data_v_59f9e7ee_hasScoped_true_buble_transforms_node_modules_vue_loader_lib_selector_type_template_index_0_modal_vue__["a" /* render */],
+  __WEBPACK_IMPORTED_MODULE_1__node_modules_vue_loader_lib_template_compiler_index_id_data_v_59f9e7ee_hasScoped_true_buble_transforms_node_modules_vue_loader_lib_selector_type_template_index_0_modal_vue__["b" /* staticRenderFns */],
+  __vue_template_functional__,
+  __vue_styles__,
+  __vue_scopeId__,
+  __vue_module_identifier__
+)
+Component.options.__file = "src/js/client/ui/modal.vue"
+
+/* hot reload */
+if (false) {(function () {
+  var hotAPI = require("vue-hot-reload-api")
+  hotAPI.install(require("vue"), false)
+  if (!hotAPI.compatible) return
+  module.hot.accept()
+  if (!module.hot.data) {
+    hotAPI.createRecord("data-v-59f9e7ee", Component.options)
+  } else {
+    hotAPI.reload("data-v-59f9e7ee", Component.options)
+  }
+  module.hot.dispose(function (data) {
+    disposed = true
+  })
+})()}
+
+/* harmony default export */ __webpack_exports__["a"] = (Component.exports);
+
+
+/***/ }),
+/* 214 */
+/***/ (function(module, exports, __webpack_require__) {
+
+// style-loader: Adds some css to the DOM by adding a <style> tag
+
+// load the styles
+var content = __webpack_require__(215);
+if(typeof content === 'string') content = [[module.i, content, '']];
+if(content.locals) module.exports = content.locals;
+// add the styles to the DOM
+var add = __webpack_require__(209).default
+var update = add("6660d993", content, false, {});
+// Hot Module Replacement
+if(false) {
+ // When the styles change, update the <style> tags
+ if(!content.locals) {
+   module.hot.accept("!!../../../../node_modules/css-loader/index.js!../../../../node_modules/vue-loader/lib/style-compiler/index.js?{\"vue\":true,\"id\":\"data-v-59f9e7ee\",\"scoped\":true,\"sourceMap\":false}!../../../../node_modules/vue-loader/lib/selector.js?type=styles&index=0!./modal.vue", function() {
+     var newContent = require("!!../../../../node_modules/css-loader/index.js!../../../../node_modules/vue-loader/lib/style-compiler/index.js?{\"vue\":true,\"id\":\"data-v-59f9e7ee\",\"scoped\":true,\"sourceMap\":false}!../../../../node_modules/vue-loader/lib/selector.js?type=styles&index=0!./modal.vue");
+     if(typeof newContent === 'string') newContent = [[module.id, newContent, '']];
+     update(newContent);
+   });
+ }
+ // When the module is disposed, remove the <style> tags
+ module.hot.dispose(function() { update(); });
+}
+
+/***/ }),
+/* 215 */
+/***/ (function(module, exports, __webpack_require__) {
+
+exports = module.exports = __webpack_require__(208)(false);
+// imports
+
+
+// module
+exports.push([module.i, "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n/*\n  Based on the VueJS example: https://vuejs.org/v2/examples/modal.html\n*/\n.modal-mask[data-v-59f9e7ee] {\n  position: fixed;\n  z-index: 9998;\n  top: 0;\n  left: 0;\n  width: 100%;\n  height: 100%;\n  background-color: rgba(0, 0, 0, .5);\n  display: table;\n  transition: opacity .3s ease;\n}\n.modal-wrapper[data-v-59f9e7ee] {\n  display: table-cell;\n  vertical-align: middle;\n}\n.modal-container[data-v-59f9e7ee] {\n  width: 600px;\n  margin: 0px auto;\n  padding: 15px;\n  background-color: #fff;\n  border-radius: 5px;\n  box-shadow: 0 2px 8px rgba(0, 0, 0, .33);\n  transition: all .3s ease;\n}\n.modal-header h3[data-v-59f9e7ee] {\n  margin-top: 0;\n  color: #42b983;\n}\n.modal-body[data-v-59f9e7ee] {\n  margin: 20px 0;\n}\n.modal-body p[data-v-59f9e7ee] {\n  margin-bottom: 10px;\n}\n.modal-default-button[data-v-59f9e7ee] {\n  float: right;\n}\n.modal-enter[data-v-59f9e7ee] {\n  opacity: 0;\n}\n.modal-leave-active[data-v-59f9e7ee] {\n  opacity: 0;\n}\n.modal-enter .modal-container[data-v-59f9e7ee],\n.modal-leave-active .modal-container[data-v-59f9e7ee] {\n  -webkit-transform: scale(1.05);\n  transform: scale(1.05);\n}\n", ""]);
+
+// exports
+
+
+/***/ }),
+/* 216 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "a", function() { return render; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "b", function() { return staticRenderFns; });
+var render = function() {
+  var _vm = this
+  var _h = _vm.$createElement
+  var _c = _vm._self._c || _h
+  return _c("transition", { attrs: { name: "modal" } }, [
+    _c("div", { staticClass: "modal-mask" }, [
+      _c("div", { staticClass: "modal-wrapper" }, [
+        _c("div", { staticClass: "modal-container" }, [
+          _c("div", { staticClass: "modal-header" }, [_vm._t("header")], 2),
+          _vm._v(" "),
+          _c("div", { staticClass: "modal-body" }, [_vm._t("body")], 2),
+          _vm._v(" "),
+          _c(
+            "div",
+            { staticClass: "modal-footer" },
+            [
+              _vm._t("footer", [
+                _c(
+                  "a",
+                  {
+                    attrs: {
+                      href: "https://github.com/evmaki/csv-to-midi",
+                      title: "view source on github"
+                    }
+                  },
+                  [
+                    _c("span", { staticClass: "icon" }, [
+                      _c(
+                        "svg",
+                        {
+                          attrs: {
+                            width: "24px",
+                            height: "24px",
+                            viewBox: "0 0 24 24"
+                          }
+                        },
+                        [
+                          _c("path", {
+                            attrs: {
+                              d:
+                                "M19,0H5C2.239,0,0,2.239,0,5v14c0,2.761,2.239,5,5,5h3.76c-0.001-0.354-0.012-1.117-0.017-2.129\n                    C5.107,22.66,4.341,20.12,4.341,20.12c-0.595-1.509-1.452-1.912-1.452-1.912c-1.187-0.811,0.089-0.795,0.089-0.795\n                    c1.312,0.092,2.002,1.347,2.002,1.347c1.166,1.998,3.059,1.421,3.803,1.087c0.12-0.845,0.457-1.42,0.831-1.748\n                    c-2.902-0.33-5.952-1.45-5.952-6.459c0-1.426,0.509-2.594,1.346-3.506C4.873,7.801,4.423,6.472,5.137,4.674\n                    c0,0,1.098-0.352,3.594,1.341C9.772,5.723,10.89,5.578,12,5.574c1.11,0.004,2.228,0.149,3.272,0.439\n                    c2.497-1.69,3.592-1.34,3.592-1.34c0.712,1.799,0.264,3.127,0.129,3.459c0.837,0.913,1.345,2.079,1.345,3.506\n                    c0,5.021-3.056,6.126-5.967,6.449c0.47,0.404,0.887,1.201,0.887,2.419c0,1.648-0.015,2.986-0.017,3.494H19c2.762,0,5-2.239,5-5V5\n                    C24,2.239,21.762,0,19,0z"
+                            }
+                          })
+                        ]
+                      )
+                    ])
+                  ]
+                ),
+                _vm._v(" "),
+                _c(
+                  "button",
+                  {
+                    staticClass: "modal-default-button",
+                    on: {
+                      click: function($event) {
+                        _vm.$emit("close")
+                      }
+                    }
+                  },
+                  [_vm._v("\n              OK\n            ")]
+                )
+              ])
+            ],
+            2
+          )
+        ])
+      ])
+    ])
+  ])
+}
+var staticRenderFns = []
+render._withStripped = true
+
+if (false) {
+  module.hot.accept()
+  if (module.hot.data) {
+    require("vue-hot-reload-api")      .rerender("data-v-59f9e7ee", { render: render, staticRenderFns: staticRenderFns })
   }
 }
 

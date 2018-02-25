@@ -1,38 +1,35 @@
 <template>
   <div class="work-pane">
-    <div class="csv" v-if="csv.length">
-      <div class="csv-row csv-headers">
-        <div class="csv-item" v-for="(key, value) in csv[0]">{{ value }}</div>
-      </div>
-      <div class="csv-row" v-for="entry in preview">
-        <div class="csv-item" v-for="(key, value) in entry">
+    <div class="csv" v-if="Object.keys(csv).length">
+      <div class="csv-column" v-for="(values, key) in preview">
+        <div class="csv-item csv-header">
           {{ key }}
         </div>
-      </div>
-      <div class="csv-row">
-        <div class="csv-item" v-for="(key, value) in csv[0]">...</div>
+        <div class="csv-item" v-for="value in values">
+          {{ value }}
+        </div>
       </div>
     </div>
     <div class="csv-startmessage" v-else>
       open a csv file to get started.
     </div>
-    <div class="settings" v-if="csv[0]">
+    <div class="settings" v-if="Object.keys(csv).length">
       <div class="settings-section">
         <p>column mappings</p>
         <div class="settings-subsection">
           <label>
             note:
             <select v-model="params.noteColumn">
-              <option v-for="(key, value) in csv[0]" v-if="!isValidTime(key)" :value="value">
-                {{ value }}
+              <option v-for="option in numericOptions" :value="option">
+                {{ option }}
               </option>
             </select>
           </label>
           <label>
             velocity:
             <select v-model="params.veloColumn">
-              <option v-for="(key, value) in csv[0]" v-if="!isValidTime(key)" :value="value">
-                {{ value }}
+              <option v-for="option in numericOptions" :value="option">
+                {{ option }}
               </option>
             </select>
           </label>
@@ -40,8 +37,8 @@
         <div class="settings-subsection">
           <label>
             time:
-            <select v-model="params.timeColumn">
-              <option value="sequential">
+            <select name="time" v-model="params.timeColumn" @change="updateBuiltin">
+              <option data-builtin>
                 sequential (legato sequence in order of rows)
               </option>
               <option disabled>
@@ -54,18 +51,18 @@
           </label>
           <label>
             duration:
-            <select v-model="params.duraColumn">
+            <select name="duration" v-model="params.duraColumn" @change="updateBuiltin">
               <option disabled>
                 fixed durations
               </option>
-              <option v-for="item in durations" :value="item">
+              <option v-for="item in durations" :value="item" data-builtin>
                 {{ item }}
               </option>
               <option disabled>
                 ---
               </option>
-              <option v-for="(key, value) in csv[0]" v-if="!isValidTime(key)" :value="value">
-                {{ value }}
+              <option v-for="option in numericOptions" :value="option">
+                {{ option }}
               </option>
             </select>
           </label>
@@ -91,10 +88,25 @@
             </select>
           </label>
         </div>
+        <div class="settings-subsection">
+          <label>
+            octave: ({{ params.octave }})
+            <input type="range" v-model="params.octave" min="0" max="10" step="1">
+          </label>
+          <label>
+            range: ({{ params.range }})
+            <input type="range" v-model="params.range" min="1" max="5" step="1">
+          </label>
+        </div>
       </div>
-        <label class="save-button" title="save midi" @click="buildNoteSequence()">
+      <div class="save-section">
+        <button class="save-button"
+          title="save midi"
+          @click="buildNoteSequence()"
+          :disabled="params.noteColumn == undefined || params.veloColumn == undefined">
           💾
-        </label>
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -107,57 +119,68 @@ var moment = require('moment')
 
 export default {
   name: 'work-pane',
-  props: ['csv', 'bounds', 'filename'],
+  props: ['csv', 'stats', 'filename'],
   data () {
     return {
       noteSequence: [],
-      params : {
-        key: 'C',
-        scale: 'major',
-        octave: 4,
-        range: 2,
-        noteColumn: undefined, // determines pitch/note
-        veloColumn: undefined, // determines velocity
-        timeColumn: 'sequential', // determines time (which tick to sound the note on)
-        duraColumn: '4',       // determines note duration
-        ppq: 128,
-        bars: 128
-      },
+      params: {}, // params are set in the reset method when the csv watcher is first triggered
       durations: ['64', '32', '16t', '16', 'd8', '8t', '8', 'd4', '4t', '4', 'd2', '2', '1']
     }
   },
   methods: {
+    /*
+      built-in values are mixed with user-dependent values (based on the imported dataset)
+      in the time and duration <select> dropdowns, so we use flags to specify whether
+      the chosen value should be treated as a built-in time or duration, or as a column
+      in the user's dataset. this avoids collisions between possible column names and any
+      sort of built-in name we might specify for the option in the dropdown
+    */
+    updateBuiltin (e) {
+      if (e.target.selectedOptions[0].attributes['data-builtin'] != undefined) {
+        this.params.builtIn[e.target.name] = true
+      }
+      else {
+         this.params.builtIn[e.target.name] = false
+      }
+      console.log(this.params.builtIn[e.target.name] + ' ' + e.target.name)
+    },
     buildNoteSequence () {
       console.log('generating note sequence from parameters...')
 
       this.noteSequence = []
 
       var notes = this.getNoteRange(this.params.key, this.params.scale, this.params.octave, this.params.range)
+      var len = this.csv[Object.keys(this.csv)[0]].length
 
-      for (var i = 0, len = this.csv.length; i < len; i++) {
+      for (var i = 0; i < len; i++) {
         this.noteSequence.push({
-          time: this.getTime(this.csv[i][this.params.timeColumn]),
-          note: this.getNote(this.csv[i][this.params.noteColumn], notes),
-          velocity: this.getVelocity(this.csv[i][this.params.veloColumn]),
-          duration: this.getDuration(this.csv[i][this.params.duraColumn]),
+          time: (this.params.builtIn['time']
+            ? undefined
+            : this.getTime(this.csv[this.params.timeColumn][i])
+          ),
+          note: this.getNote(this.csv[this.params.noteColumn][i], notes),
+          velocity: this.getVelocity(this.csv[this.params.veloColumn][i]),
+          duration: (this.params.builtIn['duration']
+            ? this.params.duraColumn
+            : this.getDuration(this.csv[this.params.duraColumn][i])),
         })
       }
 
       this.generateMidi()
     },
     getNote (value, notes) {
-      return notes[Math.floor(this.rescale(value, 0, notes.length-1, this.bounds[this.params.noteColumn]))]
+      return notes[Math.floor(this.rescale(value, 0, notes.length-1, this.stats[this.params.noteColumn]))]
     },
     getVelocity (value) {
-      return Math.floor(this.rescale(value, 0, 100, this.bounds[this.params.veloColumn]))
+      return Math.floor(this.rescale(value, 0, 100, this.stats[this.params.veloColumn]))
     },
-    getDuration (value) { // TODO this will get buggy if a column has the same name as a duration
+    getDuration (value) {
       if (value == undefined) {
         return this.params.duraColumn
       }
-      return this.durations[Math.floor(this.rescale(value, 0, this.durations.length-1, this.bounds[this.params.duraColumn]))]
+      return this.durations[Math.floor(this.rescale(value, 0, this.durations.length-1, this.stats[this.params.duraColumn]))]
     },
-    getTime (value) {     // TODO this will get buggy if a column is named "sequential"
+    getTime (value) {
       if (value == undefined) {
         return undefined
       }
@@ -165,8 +188,8 @@ export default {
       var ms = new Date(value).getTime()
 
       return Math.floor(this.rescale(ms, 0, this.params.ppq*this.params.bars, {
-        min: new Date(this.bounds[this.params.timeColumn]['min']).getTime(),
-        max: new Date(this.bounds[this.params.timeColumn]['max']).getTime()
+        min: new Date(this.stats[this.params.timeColumn]['min']).getTime(),
+        max: new Date(this.stats[this.params.timeColumn]['max']).getTime()
       }))
     },
     generateMidi () {
@@ -241,11 +264,37 @@ export default {
     },
     isValidTime (str) {
       return moment(str).isValid() && isNaN(str)
+    },
+    reset () {
+      this.noteSequence = []
+
+      return {
+        key: 'C',
+        scale: 'major',
+        octave: 4,
+        range: 2,
+        noteColumn: undefined, // determines pitch/note
+        veloColumn: undefined, // determines velocity
+        timeColumn: undefined, // determines time (which tick to sound the note on)
+        duraColumn: undefined, // determines note duration
+        builtIn: {
+          time: true,
+          duration: true
+        },
+        ppq: 128,
+        bars: 128
+      }
     }
   },
   computed: {
     preview: function () {
-      return this.csv.slice(0, 10)
+      var preview = {}
+
+      for (let key in this.csv) {
+        preview[key] = this.csv[key].slice(0, 10)
+      }
+
+      return preview
     },
     scales: function () {
       return Scale.names()
@@ -253,16 +302,33 @@ export default {
     keys: function () {
       return Scale.notes('C chromatic')
     },
-    timeOptions: function () {
+    timeOptions: function () {    // TODO only checks if first element is valid
       var ary = []
 
-      for (let key in this.csv[0]) {
-        if (this.isValidTime(this.csv[0][key])) {
+      for (let key in this.csv) {
+        if (this.isValidTime(this.csv[key][0])) {
           ary.push(key)
         }
       }
 
       return ary
+    },
+    numericOptions: function () {
+      var ary = []
+
+      for (let key in this.csv) {
+        if (!this.isValidTime(this.csv[key][0])) {
+          ary.push(key)
+        }
+      }
+
+      return ary
+    }
+  },
+  watch: {
+    'csv': function () {
+      console.log('csv updated')
+      this.params = this.reset()
     }
   }
 }

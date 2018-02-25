@@ -15,6 +15,10 @@ h1 {
   font-size: 24px;
 }
 
+a {
+  text-decoration: none;
+}
+
 .brand, .brand:hover {
   text-decoration: none;
   color: #2f2f2f;
@@ -45,6 +49,32 @@ a:visited {
   justify-content: space-between;
 }
 
+.header-buttons {
+  display: flex;
+  align-items: center;
+}
+
+.header-buttons a {
+  height: 16px;
+}
+
+.help-button {
+  padding: 2px;
+  border: none;
+  border-radius: 3px;
+  width: 16px;
+  height: 16px;
+  outline: none;
+  font-size: 14px;
+  font-weight: 700;
+  margin-left: 4px;
+  line-height: 0.5;
+}
+
+.help-button:hover {
+  cursor: pointer;
+}
+
 .footer {
   justify-content: flex-end;
   font-size: 12px;
@@ -54,7 +84,6 @@ a:visited {
   Upload pane
 */
 .upload-pane {
-  border-top: 2px solid #eeeeee;
   margin-top: 3em;
   display: grid;
   justify-content: space-between;
@@ -85,8 +114,17 @@ input[type="file"] {
   display: none;
 }
 
+input[type="range"] {
+  width: 95%;
+}
+
 .button {
   padding: 3px;
+}
+
+button:disabled, button[disabled] {
+  cursor: default;
+  opacity: 0.25;
 }
 
 /*
@@ -94,6 +132,10 @@ input[type="file"] {
 */
 .work-pane {
   background-color: #eeeeee;
+}
+
+.work-pane, .settings {
+  border-radius: 0 0 5px 5px;
 }
 
 .work-pane canvas{
@@ -104,38 +146,38 @@ input[type="file"] {
   padding: 5px;
   font-size: 12px;
   display: flex;
-  flex-wrap: wrap;
+  justify-content: space-between;
+  flex-wrap: nowrap;
   width: 790px;
 }
 
 .csv-startmessage {
+  display: flex;
+  justify-content: center;
+  align-items: center;
   font-size: 16px;
   height: 40px;
-  text-align: center;
-  align-items: center;
 }
 
-.csv-headers {
+.csv-header {
   font-weight: 700;
   margin-bottom: 5px;
 }
 
-.csv-row {
-  display: flex;
-  width: 100%;
+.csv-column {
+
 }
 
 .csv-item {
   padding-left: 2px;
   overflow: hidden;
-  width: 100px;
   height: 14px;
 }
 
 .settings {
   padding: 5px;
   display: grid;
-  grid-template-columns: 33% 33% 33%;
+  grid-template-columns: 33.333% 33.333% 33.333%;
   background-color: #cccccc;
 }
 
@@ -164,7 +206,45 @@ input[type="file"] {
 }
 
 .save-button {
+  height: 24px;
+  font-size: 16px;
   cursor: pointer;
+  padding: 0;
+  background-color: transparent;
+  outline: none;
+  border: none;
+}
+
+.save-button:focus {
+  outline: none;
+  border: none;
+}
+
+.save-section {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+}
+
+/*
+ Help modal
+*/
+.modal-body p {
+  margin-bottom: 10px;
+}
+
+ol, ul {
+  margin-left: 25px;
+}
+
+.modal-wrapper {
+  line-height: 1.5;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 /*
