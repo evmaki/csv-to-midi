@@ -11562,7 +11562,7 @@ var moment = __webpack_require__(0)
     parseFile (csvString) {
       this.csv = {}
       this.stats = {}
-      
+
       fastCsv.fromString(csvString, { headers: true })
         .on('data', this.parseRow)
         .on('end', this.parseCompleteCallback)
@@ -11611,13 +11611,49 @@ var moment = __webpack_require__(0)
           console.log('removing non-numeric ' + key + ' vector from dataset')
         }
       }
+
+      for (let key in this.stats) {
+        var stdd = this.stddev(this.csv[key], this.stats[key]['sum'])
+        this.stats[key]['mean'] = stdd['mean']
+        this.stats[key]['standardDeviation'] = stdd['deviation']
+      }
+
       // ensure underlying Vue components see the update
       // https://stackoverflow.com/questions/45551588/vue-component-props-not-watching-object-changes-properly
       this.csv = Object.assign({}, this.csv)
       this.stats = Object.assign({}, this.stats)
-
-      console.log(this.csv)
     },
+    // https://gist.github.com/hanksudo/6028201
+    stddev: function(ary, sum) {
+      var n = ary.length
+
+      var mean = sum / n
+
+      var stdev
+      var variance = 0.0
+      var v1 = 0.0
+      var v2 = 0.0
+
+      if (n != 1) {
+          for (var i = 0; i<n; i++) {
+              v1 = v1 + (ary[i] - mean) * (ary[i] - mean)
+              v2 = v2 + (ary[i] - mean)
+          }
+
+          v2 = v2 * v2 / n
+          variance = (v1 - v2) / (n-1)
+          if (variance < 0) {
+            variance = 0
+          }
+          stdev = Math.sqrt(variance)
+      }
+
+      return {
+          mean: Math.round(mean*100)/100,
+          variance: variance,
+          deviation: Math.round(stdev*100)/100
+      }
+    }
   },
   computed: {
     entries: function () {
@@ -11827,10 +11863,14 @@ var moment = __webpack_require__(0)
       else {
          this.params.builtIn[e.target.name] = false
       }
-      console.log(this.params.builtIn[e.target.name] + ' ' + e.target.name)
     },
     buildNoteSequence () {
       console.log('generating note sequence from parameters...')
+
+      var noteColumn = this.params.noteColumn
+      var velocityColumn = this.params.veloColumn
+      var durationColumn = this.params.duraColumn
+      var timeColumn = this.params.timeColumn
 
       this.noteSequence = []
 
@@ -11838,23 +11878,52 @@ var moment = __webpack_require__(0)
       var len = this.csv[Object.keys(this.csv)[0]].length
 
       for (var i = 0; i < len; i++) {
-        this.noteSequence.push({
-          time: (this.params.builtIn['time']
-            ? undefined
-            : this.getTime(this.csv[this.params.timeColumn][i])
-          ),
-          note: this.getNote(this.csv[this.params.noteColumn][i], notes),
-          velocity: this.getVelocity(this.csv[this.params.veloColumn][i]),
-          duration: (this.params.builtIn['duration']
-            ? this.params.duraColumn
-            : this.getDuration(this.csv[this.params.duraColumn][i])),
-        })
+        var note = {}
+
+        //  time
+        if (!this.params.builtIn['time']) {     // don't use the built in option
+          note['time'] = this.getTime(this.csv[timeColumn][i])
+        }
+
+        //  duration
+        if (!this.params.builtIn['duration']) { // don't use the built in options
+          note['duration'] = this.getDuration(this.csv[durationColumn][i])
+        }
+        else note['duration'] = durationColumn
+
+        //  pitch
+        if (this.withinStandardDeviations(this.zscore(noteColumn, i))) {
+          note['pitch'] = this.getNote(this.csv[noteColumn][i], notes)
+        }
+        else note['pitch'] = this.getNote(this.stats[noteColumn]['mean'], notes)
+
+        //  velocity
+        if (this.withinStandardDeviations(this.zscore(velocityColumn, i))) {
+          note['velocity'] = this.getVelocity(this.csv[velocityColumn][i])
+        }
+        else note['velocity'] = this.getVelocity(this.stats[velocityColumn]['mean'])
+
+        this.noteSequence.push(note)
       }
 
       this.generateMidi()
     },
-    getNote (value, notes) {
+    zscore (column, row) {
+      return (this.csv[column][row] - this.stats[column]['mean'])/this.stats[column]['standardDeviation']
+    },
+    withinStandardDeviations (zscore) {
+      return zscore <= this.params.standardDeviations && zscore >= (this.params.standardDeviations/-1)
+    },
+    getNote (value, notes) {  // TODO outliers that wreck the min/max values mess this up
       return notes[Math.floor(this.rescale(value, 0, notes.length-1, this.stats[this.params.noteColumn]))]
+/*
+      return notes[Math.floor(this.rescale(value, 0, notes.length-1, {
+        min: (this.params.standardDeviations/-1)*this.stats[this.params.noteColumn]['standardDeviation']
+          + this.stats[this.params.noteColumn]['mean'],
+        max: this.params.standardDeviations*this.stats[this.params.noteColumn]['standardDeviation']
+          + this.stats[this.params.noteColumn]['mean']
+      }))]
+*/
     },
     getVelocity (value) {
       return Math.floor(this.rescale(value, 0, 100, this.stats[this.params.veloColumn]))
@@ -11869,13 +11938,8 @@ var moment = __webpack_require__(0)
       if (value == undefined) {
         return undefined
       }
-
       var ms = new Date(value).getTime()
-
-      return Math.floor(this.rescale(ms, 0, this.params.ppq*this.params.bars, {
-        min: new Date(this.stats[this.params.timeColumn]['min']).getTime(),
-        max: new Date(this.stats[this.params.timeColumn]['max']).getTime()
-      }))
+      return Math.floor(this.rescale(ms, 0, this.params.ppq*this.params.bars, this.stats[this.params.timeColumn]))
     },
     generateMidi () {
       console.log('generating midi...')
@@ -11892,7 +11956,7 @@ var moment = __webpack_require__(0)
         }
 
         track.addEvent(new mw.NoteEvent({
-          pitch: this.noteSequence[i]['note'],
+          pitch: this.noteSequence[i]['pitch'],
           duration: this.noteSequence[i]['duration'],
           velocity: this.noteSequence[i]['velocity'],
           wait: 'T' + wait
@@ -11944,7 +12008,7 @@ var moment = __webpack_require__(0)
       return ary
     },
     rescale (x, a, b, bound) {
-      //console.log(x + ' ' + a + ' ' + b + ' ' + min + ' ' + max)
+      //console.log(x + ' ' + a + ' ' + b + ' ' + bound['min'] + ' ' + bound['max'])
       return (((b-a)*(x-bound.min))/(bound.max-bound.min))+a
     },
     isValidTime (str) {
@@ -11961,11 +12025,12 @@ var moment = __webpack_require__(0)
         noteColumn: undefined, // determines pitch/note
         veloColumn: undefined, // determines velocity
         timeColumn: undefined, // determines time (which tick to sound the note on)
-        duraColumn: undefined, // determines note duration
+        duraColumn: '4', // determines note duration
         builtIn: {
           time: true,
           duration: true
         },
+        standardDeviations: 2,
         ppq: 128,
         bars: 128
       }
@@ -28637,11 +28702,18 @@ var render = function() {
                     }
                   },
                   [
-                    _c("option", { attrs: { "data-builtin": "" } }, [
-                      _vm._v(
-                        "\n              sequential (legato sequence in order of rows)\n            "
-                      )
-                    ]),
+                    _c(
+                      "option",
+                      {
+                        attrs: { "data-builtin": "" },
+                        domProps: { value: undefined }
+                      },
+                      [
+                        _vm._v(
+                          "\n              sequential (legato sequence in order of rows)\n            "
+                        )
+                      ]
+                    ),
                     _vm._v(" "),
                     _c("option", { attrs: { disabled: "" } }, [
                       _vm._v("\n              ---\n            ")
@@ -34345,69 +34417,80 @@ var render = function() {
   var _h = _vm.$createElement
   var _c = _vm._self._c || _h
   return _c("transition", { attrs: { name: "modal" } }, [
-    _c("div", { staticClass: "modal-mask" }, [
-      _c("div", { staticClass: "modal-wrapper" }, [
-        _c("div", { staticClass: "modal-container" }, [
-          _c("div", { staticClass: "modal-header" }, [_vm._t("header")], 2),
-          _vm._v(" "),
-          _c("div", { staticClass: "modal-body" }, [_vm._t("body")], 2),
-          _vm._v(" "),
-          _c(
-            "div",
-            { staticClass: "modal-footer" },
-            [
-              _vm._t("footer", [
-                _c(
-                  "a",
-                  {
-                    attrs: {
-                      href: "https://github.com/evmaki/csv-to-midi",
-                      title: "view source on github"
-                    }
-                  },
-                  [
-                    _c("span", { staticClass: "icon" }, [
-                      _c(
-                        "svg",
-                        {
-                          attrs: {
-                            width: "24px",
-                            height: "24px",
-                            viewBox: "0 0 24 24"
-                          }
-                        },
-                        [
-                          _c("path", {
-                            attrs: {
-                              d:
-                                "M19,0H5C2.239,0,0,2.239,0,5v14c0,2.761,2.239,5,5,5h3.76c-0.001-0.354-0.012-1.117-0.017-2.129\n                    C5.107,22.66,4.341,20.12,4.341,20.12c-0.595-1.509-1.452-1.912-1.452-1.912c-1.187-0.811,0.089-0.795,0.089-0.795\n                    c1.312,0.092,2.002,1.347,2.002,1.347c1.166,1.998,3.059,1.421,3.803,1.087c0.12-0.845,0.457-1.42,0.831-1.748\n                    c-2.902-0.33-5.952-1.45-5.952-6.459c0-1.426,0.509-2.594,1.346-3.506C4.873,7.801,4.423,6.472,5.137,4.674\n                    c0,0,1.098-0.352,3.594,1.341C9.772,5.723,10.89,5.578,12,5.574c1.11,0.004,2.228,0.149,3.272,0.439\n                    c2.497-1.69,3.592-1.34,3.592-1.34c0.712,1.799,0.264,3.127,0.129,3.459c0.837,0.913,1.345,2.079,1.345,3.506\n                    c0,5.021-3.056,6.126-5.967,6.449c0.47,0.404,0.887,1.201,0.887,2.419c0,1.648-0.015,2.986-0.017,3.494H19c2.762,0,5-2.239,5-5V5\n                    C24,2.239,21.762,0,19,0z"
-                            }
-                          })
-                        ]
-                      )
-                    ])
-                  ]
-                ),
-                _vm._v(" "),
-                _c(
-                  "button",
-                  {
-                    staticClass: "modal-default-button",
-                    on: {
-                      click: function($event) {
-                        _vm.$emit("close")
+    _c(
+      "div",
+      {
+        staticClass: "modal-mask",
+        on: {
+          click: function($event) {
+            _vm.$emit("close")
+          }
+        }
+      },
+      [
+        _c("div", { staticClass: "modal-wrapper" }, [
+          _c("div", { staticClass: "modal-container" }, [
+            _c("div", { staticClass: "modal-header" }, [_vm._t("header")], 2),
+            _vm._v(" "),
+            _c("div", { staticClass: "modal-body" }, [_vm._t("body")], 2),
+            _vm._v(" "),
+            _c(
+              "div",
+              { staticClass: "modal-footer" },
+              [
+                _vm._t("footer", [
+                  _c(
+                    "a",
+                    {
+                      attrs: {
+                        href: "https://github.com/evmaki/csv-to-midi",
+                        title: "view source on github"
                       }
-                    }
-                  },
-                  [_vm._v("\n              OK\n            ")]
-                )
-              ])
-            ],
-            2
-          )
+                    },
+                    [
+                      _c("span", { staticClass: "icon" }, [
+                        _c(
+                          "svg",
+                          {
+                            attrs: {
+                              width: "24px",
+                              height: "24px",
+                              viewBox: "0 0 24 24"
+                            }
+                          },
+                          [
+                            _c("path", {
+                              attrs: {
+                                d:
+                                  "M19,0H5C2.239,0,0,2.239,0,5v14c0,2.761,2.239,5,5,5h3.76c-0.001-0.354-0.012-1.117-0.017-2.129\n                    C5.107,22.66,4.341,20.12,4.341,20.12c-0.595-1.509-1.452-1.912-1.452-1.912c-1.187-0.811,0.089-0.795,0.089-0.795\n                    c1.312,0.092,2.002,1.347,2.002,1.347c1.166,1.998,3.059,1.421,3.803,1.087c0.12-0.845,0.457-1.42,0.831-1.748\n                    c-2.902-0.33-5.952-1.45-5.952-6.459c0-1.426,0.509-2.594,1.346-3.506C4.873,7.801,4.423,6.472,5.137,4.674\n                    c0,0,1.098-0.352,3.594,1.341C9.772,5.723,10.89,5.578,12,5.574c1.11,0.004,2.228,0.149,3.272,0.439\n                    c2.497-1.69,3.592-1.34,3.592-1.34c0.712,1.799,0.264,3.127,0.129,3.459c0.837,0.913,1.345,2.079,1.345,3.506\n                    c0,5.021-3.056,6.126-5.967,6.449c0.47,0.404,0.887,1.201,0.887,2.419c0,1.648-0.015,2.986-0.017,3.494H19c2.762,0,5-2.239,5-5V5\n                    C24,2.239,21.762,0,19,0z"
+                              }
+                            })
+                          ]
+                        )
+                      ])
+                    ]
+                  ),
+                  _vm._v(" "),
+                  _c(
+                    "button",
+                    {
+                      staticClass: "modal-default-button",
+                      on: {
+                        click: function($event) {
+                          _vm.$emit("close")
+                        }
+                      }
+                    },
+                    [_vm._v("\n              OK\n            ")]
+                  )
+                ])
+              ],
+              2
+            )
+          ])
         ])
-      ])
-    ])
+      ]
+    )
   ])
 }
 var staticRenderFns = []

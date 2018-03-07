@@ -84,7 +84,7 @@ export default {
     parseFile (csvString) {
       this.csv = {}
       this.stats = {}
-      
+
       fastCsv.fromString(csvString, { headers: true })
         .on('data', this.parseRow)
         .on('end', this.parseCompleteCallback)
@@ -133,13 +133,49 @@ export default {
           console.log('removing non-numeric ' + key + ' vector from dataset')
         }
       }
+
+      for (let key in this.stats) {
+        var stdd = this.stddev(this.csv[key], this.stats[key]['sum'])
+        this.stats[key]['mean'] = stdd['mean']
+        this.stats[key]['standardDeviation'] = stdd['deviation']
+      }
+
       // ensure underlying Vue components see the update
       // https://stackoverflow.com/questions/45551588/vue-component-props-not-watching-object-changes-properly
       this.csv = Object.assign({}, this.csv)
       this.stats = Object.assign({}, this.stats)
-
-      console.log(this.csv)
     },
+    // https://gist.github.com/hanksudo/6028201
+    stddev: function(ary, sum) {
+      var n = ary.length
+
+      var mean = sum / n
+
+      var stdev
+      var variance = 0.0
+      var v1 = 0.0
+      var v2 = 0.0
+
+      if (n != 1) {
+          for (var i = 0; i<n; i++) {
+              v1 = v1 + (ary[i] - mean) * (ary[i] - mean)
+              v2 = v2 + (ary[i] - mean)
+          }
+
+          v2 = v2 * v2 / n
+          variance = (v1 - v2) / (n-1)
+          if (variance < 0) {
+            variance = 0
+          }
+          stdev = Math.sqrt(variance)
+      }
+
+      return {
+          mean: Math.round(mean*100)/100,
+          variance: variance,
+          deviation: Math.round(stdev*100)/100
+      }
+    }
   },
   computed: {
     entries: function () {

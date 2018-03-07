@@ -146,7 +146,7 @@ button:disabled, button[disabled] {
   padding: 5px;
   font-size: 12px;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   flex-wrap: nowrap;
   width: 790px;
 }
@@ -165,7 +165,7 @@ button:disabled, button[disabled] {
 }
 
 .csv-column {
-
+  width: 50px;
 }
 
 .csv-item {

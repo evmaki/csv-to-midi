@@ -38,7 +38,7 @@
           <label>
             time:
             <select name="time" v-model="params.timeColumn" @change="updateBuiltin">
-              <option data-builtin>
+              <option :value="undefined" data-builtin>
                 sequential (legato sequence in order of rows)
               </option>
               <option disabled>
@@ -142,10 +142,14 @@ export default {
       else {
          this.params.builtIn[e.target.name] = false
       }
-      console.log(this.params.builtIn[e.target.name] + ' ' + e.target.name)
     },
     buildNoteSequence () {
       console.log('generating note sequence from parameters...')
+
+      var noteColumn = this.params.noteColumn
+      var velocityColumn = this.params.veloColumn
+      var durationColumn = this.params.duraColumn
+      var timeColumn = this.params.timeColumn
 
       this.noteSequence = []
 
@@ -153,23 +157,52 @@ export default {
       var len = this.csv[Object.keys(this.csv)[0]].length
 
       for (var i = 0; i < len; i++) {
-        this.noteSequence.push({
-          time: (this.params.builtIn['time']
-            ? undefined
-            : this.getTime(this.csv[this.params.timeColumn][i])
-          ),
-          note: this.getNote(this.csv[this.params.noteColumn][i], notes),
-          velocity: this.getVelocity(this.csv[this.params.veloColumn][i]),
-          duration: (this.params.builtIn['duration']
-            ? this.params.duraColumn
-            : this.getDuration(this.csv[this.params.duraColumn][i])),
-        })
+        var note = {}
+
+        //  time
+        if (!this.params.builtIn['time']) {     // don't use the built in option
+          note['time'] = this.getTime(this.csv[timeColumn][i])
+        }
+
+        //  duration
+        if (!this.params.builtIn['duration']) { // don't use the built in options
+          note['duration'] = this.getDuration(this.csv[durationColumn][i])
+        }
+        else note['duration'] = durationColumn
+
+        //  pitch
+        if (this.withinStandardDeviations(this.zscore(noteColumn, i))) {
+          note['pitch'] = this.getNote(this.csv[noteColumn][i], notes)
+        }
+        else note['pitch'] = this.getNote(this.stats[noteColumn]['mean'], notes)
+
+        //  velocity
+        if (this.withinStandardDeviations(this.zscore(velocityColumn, i))) {
+          note['velocity'] = this.getVelocity(this.csv[velocityColumn][i])
+        }
+        else note['velocity'] = this.getVelocity(this.stats[velocityColumn]['mean'])
+
+        this.noteSequence.push(note)
       }
 
       this.generateMidi()
     },
-    getNote (value, notes) {
+    zscore (column, row) {
+      return (this.csv[column][row] - this.stats[column]['mean'])/this.stats[column]['standardDeviation']
+    },
+    withinStandardDeviations (zscore) {
+      return zscore <= this.params.standardDeviations && zscore >= (this.params.standardDeviations/-1)
+    },
+    getNote (value, notes) {  // TODO outliers that wreck the min/max values mess this up
       return notes[Math.floor(this.rescale(value, 0, notes.length-1, this.stats[this.params.noteColumn]))]
+/*
+      return notes[Math.floor(this.rescale(value, 0, notes.length-1, {
+        min: (this.params.standardDeviations/-1)*this.stats[this.params.noteColumn]['standardDeviation']
+          + this.stats[this.params.noteColumn]['mean'],
+        max: this.params.standardDeviations*this.stats[this.params.noteColumn]['standardDeviation']
+          + this.stats[this.params.noteColumn]['mean']
+      }))]
+*/
     },
     getVelocity (value) {
       return Math.floor(this.rescale(value, 0, 100, this.stats[this.params.veloColumn]))
@@ -184,13 +217,8 @@ export default {
       if (value == undefined) {
         return undefined
       }
-
       var ms = new Date(value).getTime()
-
-      return Math.floor(this.rescale(ms, 0, this.params.ppq*this.params.bars, {
-        min: new Date(this.stats[this.params.timeColumn]['min']).getTime(),
-        max: new Date(this.stats[this.params.timeColumn]['max']).getTime()
-      }))
+      return Math.floor(this.rescale(ms, 0, this.params.ppq*this.params.bars, this.stats[this.params.timeColumn]))
     },
     generateMidi () {
       console.log('generating midi...')
@@ -207,7 +235,7 @@ export default {
         }
 
         track.addEvent(new mw.NoteEvent({
-          pitch: this.noteSequence[i]['note'],
+          pitch: this.noteSequence[i]['pitch'],
           duration: this.noteSequence[i]['duration'],
           velocity: this.noteSequence[i]['velocity'],
           wait: 'T' + wait
@@ -259,7 +287,7 @@ export default {
       return ary
     },
     rescale (x, a, b, bound) {
-      //console.log(x + ' ' + a + ' ' + b + ' ' + min + ' ' + max)
+      //console.log(x + ' ' + a + ' ' + b + ' ' + bound['min'] + ' ' + bound['max'])
       return (((b-a)*(x-bound.min))/(bound.max-bound.min))+a
     },
     isValidTime (str) {
@@ -276,11 +304,12 @@ export default {
         noteColumn: undefined, // determines pitch/note
         veloColumn: undefined, // determines velocity
         timeColumn: undefined, // determines time (which tick to sound the note on)
-        duraColumn: undefined, // determines note duration
+        duraColumn: '4', // determines note duration
         builtIn: {
           time: true,
           duration: true
         },
+        standardDeviations: 2,
         ppq: 128,
         bars: 128
       }
