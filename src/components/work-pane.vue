@@ -114,7 +114,7 @@
 <script>
 import { Scale } from 'tonal'
 
-import mw from 'midi-writer-js'
+import MidiWriter from 'midi-writer-js'
 import moment from 'moment'
 
 export default {
@@ -170,42 +170,31 @@ export default {
         }
         else note['duration'] = durationColumn
 
-        //  pitch
-        if (this.withinStandardDeviations(this.zscore(noteColumn, i))) {
-          note['pitch'] = this.getNote(this.csv[noteColumn][i], notes)
-        }
-        else note['pitch'] = this.getNote(this.stats[noteColumn]['mean'], notes)
+        // pitch
+        note['pitch'] = this.getNote(this.csv[noteColumn][i], notes)
 
         //  velocity
-        if (this.withinStandardDeviations(this.zscore(velocityColumn, i))) {
-          note['velocity'] = this.getVelocity(this.csv[velocityColumn][i])
-        }
-        else note['velocity'] = this.getVelocity(this.stats[velocityColumn]['mean'])
+        note['velocity'] = this.getVelocity(this.csv[velocityColumn][i])
 
         this.noteSequence.push(note)
       }
 
       this.generateMidi()
     },
-    zscore (column, row) {
-      return (this.csv[column][row] - this.stats[column]['mean'])/this.stats[column]['standardDeviation']
-    },
-    withinStandardDeviations (zscore) {
-      return zscore <= this.params.standardDeviations && zscore >= (this.params.standardDeviations/-1)
-    },
-    getNote (value, notes) {  // TODO outliers that wreck the min/max values mess this up
+    getNote (value, notes) {
       return notes[Math.floor(this.rescale(value, 0, notes.length-1, this.stats[this.params.noteColumn]))]
-/*
-      return notes[Math.floor(this.rescale(value, 0, notes.length-1, {
-        min: (this.params.standardDeviations/-1)*this.stats[this.params.noteColumn]['standardDeviation']
-          + this.stats[this.params.noteColumn]['mean'],
-        max: this.params.standardDeviations*this.stats[this.params.noteColumn]['standardDeviation']
-          + this.stats[this.params.noteColumn]['mean']
-      }))]
-*/
+    },
+    rescale (x, a, b, bound) {
+      console.log(x + ' ' + a + ' ' + b + ' ' + bound['min'] + ' ' + bound['max'])
+      if (bound['min'] == bound['max']) {
+        return bound['min']
+      }
+      else {
+        return (((b-a)*(x-bound.min))/(bound.max-bound.min))+a
+      }
     },
     getVelocity (value) {
-      return Math.floor(this.rescale(value, 0, 100, this.stats[this.params.veloColumn]))
+      return Math.floor(this.rescale(value, 1, 100, this.stats[this.params.veloColumn]))
     },
     getDuration (value) {
       if (value == undefined) {
@@ -223,7 +212,7 @@ export default {
     generateMidi () {
       console.log('generating midi...')
 
-      var track = new mw.Track(), wait
+      var track = new MidiWriter.Track(), wait
 
       for (var i = 0, len = this.noteSequence.length; i < len; i++) {
         // calculate appropriate wait time between notes
@@ -234,18 +223,18 @@ export default {
           wait = this.noteSequence[i]['time'] - this.noteSequence[i-1]['time']
         }
 
-        track.addEvent(new mw.NoteEvent({
-          pitch: this.noteSequence[i]['pitch'],
-          duration: this.noteSequence[i]['duration'],
-          velocity: this.noteSequence[i]['velocity'],
-          wait: 'T' + wait
+        track.addEvent(new MidiWriter.NoteEvent({
+            pitch: this.noteSequence[i]['pitch'],
+            duration: this.noteSequence[i]['duration'],
+            velocity: this.noteSequence[i]['velocity'],
+            wait: 'T' + wait
         }))
       }
 
       this.downloadTrack(track)
     },
     downloadTrack (track) {
-      var write = new mw.Writer([track])
+      const write = new MidiWriter.Writer(track);
       var data = write.buildFile()
       var filename = this.filename + '.mid'
 
@@ -271,12 +260,18 @@ export default {
       }
     },
     getNoteRange (key, scale, octave, range) {
+      // get all of the notes in the given key
       var tmp = Scale.notes(key + ' ' + scale), ary = [], keyLength = tmp.length
 
+      // repeat the scale for each octave in the given range
       for (var i = 0; i < range; i++) {
         ary.push.apply(ary, tmp)
       }
 
+      // the notes appear one octave lower in midi – increment the octave value to correct this
+      octave++
+
+      // add the correct octave for each note
       for (var i = 0, len = ary.length; i < len; i++) {
         if (i % keyLength == 0 && i != 0) {
           octave++
@@ -285,10 +280,6 @@ export default {
       }
 
       return ary
-    },
-    rescale (x, a, b, bound) {
-      //console.log(x + ' ' + a + ' ' + b + ' ' + bound['min'] + ' ' + bound['max'])
-      return (((b-a)*(x-bound.min))/(bound.max-bound.min))+a
     },
     isValidTime (str) {
       return moment(str).isValid() && isNaN(str)
