@@ -1,10 +1,10 @@
 {
   "name": "csv-to-midi",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A simple tool for converting csv datasets to melodic midi files.",
-  "main": "src/js/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "serve": "vue-cli-service serve",
+    "build": "vue-cli-service build"
   },
   "author": "Evan King",
   "repository": {
@@ -13,15 +13,15 @@
   },
   "license": "ISC",
   "dependencies": {
-    "css-loader": "^0.28.9",
-    "express": "^4.16.2",
-    "fast-csv": "^2.4.1",
-    "midi-writer-js": "^1.5.2",
-    "moment": "^2.20.1",
-    "paper": "^0.11.5",
-    "tonal": "^1.1.3",
-    "vue": "^2.5.13",
-    "vue-loader": "^14.1.1",
-    "vue-template-compiler": "^2.5.13"
+    "@fast-csv/parse": "^4.3.6",
+    "browserify": "^17.0.0",
+    "midi-writer-js": "^2.1.0",
+    "moment": "^2.29.3",
+    "setimmediate": "^1.0.5",
+    "tonal": "^2.2.2",
+    "vue": "^3.2.36"
+  },
+  "devDependencies": {
+    "@vue/cli-service": "^5.0.6"
   }
 }

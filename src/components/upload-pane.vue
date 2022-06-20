@@ -34,7 +34,7 @@ export default {
       reader.readAsText(file)
     },
     onFileLoaded (e) {
-      this.$parent.$emit('fileLoaded', { result: e.target.result, filename: this.filename })
+      this.$parent.parseFile({ content: e.target.result, filename: this.filename })
     }
   }
 }

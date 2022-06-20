@@ -1,17 +1,45 @@
 <template>
   <transition name="modal">
-    <div class="modal-mask" @click="$emit('close')">
+    <div class="modal-mask">
       <div class="modal-wrapper">
         <div class="modal-container">
+      <div slot="body">
 
+      </div>
           <div class="modal-header">
-            <slot name="header">
-            </slot>
+            <h3>what is this?</h3>
           </div>
 
           <div class="modal-body">
-            <slot name="body">
-            </slot>
+            <p>
+              <p>csv-to-midi converts csv datasets to midi sequences.</p>
+              <p>
+                each row in the dataset generates a single note. change <i>column mappings</i>
+                to alter the timing and voicing of notes based on the data present in a chosen column.
+                change <i>tonality</i> parameters to specify the key and octave
+                range of notes in the generated sequence.
+              </p>
+            </p>
+
+            <p><h4>step by step:</h4></p>
+            <ol>
+              <li>load a csv dataset WITH HEADERS (it needs headers!)</li>
+              <li>assign columns to each sequence parameter</li>
+              <ul>
+                <li><b>note:</b> element value determines scale degree (note)</li>
+                <li><b>velocity:</b> determines note velocity</li>
+                <li><b>time:</b>
+                  determines when the note will sound. only ordered datasets
+                  (from earliest to latest) with time in UTC format currently
+                  work for this mapping. otherwise, notes will be ordered in a
+                  legato (no gaps) sequence.
+                </li>
+                <li><b>duration:</b> determines the length of the note, or choose from a
+                  fixed duration for all notes from the given options.</li>
+              </ul>
+              <li>tweak tonality parameters to your liking</li>
+              <li>save sequence</li>
+            </ol>
           </div>
 
           <div class="modal-footer">
@@ -80,7 +108,6 @@ export default {
 
 .modal-header h3 {
   margin-top: 0;
-  color: #42b983;
 }
 
 .modal-body {
