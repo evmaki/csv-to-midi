@@ -114,8 +114,8 @@
 <script>
 import { Scale } from 'tonal'
 
-var mw = require('midi-writer-js')
-var moment = require('moment')
+import mw from 'midi-writer-js'
+import moment from 'moment'
 
 export default {
   name: 'work-pane',

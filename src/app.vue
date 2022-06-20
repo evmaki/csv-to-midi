@@ -1,63 +1,14 @@
-<template>
-  <div class="wrapper">
-    <div class="header">
-      <a class="brand" href="/" title="to convert csv datasets to midi. in case you feel like doing that.">
-        <h1>csv to midi</h1>
-      </a>
-      <div class="header-buttons">
-        <button class="help-button" title="help" @click="showHelp = true">
-          ?
-        </button>
-      </div>
-    </div>
-    <upload-pane :entries="entries"></upload-pane>
-    <work-pane :csv="csv" :stats="stats" :filename="filename"></work-pane>
-    <div class="footer">
-    </div>
-    <modal v-if="showHelp" @close="showHelp = false">
-      <h3 slot="header">what is this?</h3>
-      <div slot="body">
-        <p>
-          csv-to-midi converts csv datasets to midi sequences.
-          <p>
-            each row in the dataset generates a single note. change <i>column mappings</i>
-            to alter the timing and voicing of notes based on the data present in a chosen column.
-            change <i>tonality</i> parameters to specify the key and octave
-            range of notes in the generated sequence.
-          <p>
-        </p>
-
-        <p><h4>step by step:</h4></p>
-        <ol>
-          <li>load a csv dataset WITH HEADERS (it needs headers!)</li>
-          <li>assign columns to each sequence parameter</li>
-          <ul>
-            <li><b>note:</b> element value determines scale degree (note)</li>
-            <li><b>velocity:</b> determines note velocity</li>
-            <li><b>time:</b>
-              determines when the note will sound. only ordered datasets
-              (from earliest to latest) with time in UTC format currently
-              work for this mapping. otherwise, notes will be ordered in a
-              legato (no gaps) sequence.
-            </li>
-            <li><b>duration:</b> determines the length of the note, or choose from a
-              fixed duration for all notes from the given options.</li>
-          </ul>
-          <li>tweak tonality parameters to your liking</li>
-          <li>save sequence</li>
-        </ol>
-      </div>
-    </modal>
-  </div>
-</template>
-
 <script>
-import UploadPane from './upload-pane.vue'
-import WorkPane from './work-pane.vue'
-import Modal from './modal.vue'
+import UploadPane from './components/upload-pane.vue'
+import WorkPane from './components/work-pane.vue'
+import Modal from './components/modal.vue'
 
-var fastCsv = require('fast-csv')
-var moment = require('moment')
+import { parseString } from '@fast-csv/parse'
+import moment from 'moment'
+
+// this is a function with spotty browser support used by fast-csv
+// it's imported here so that it comes in scope globally
+import setImmediate from 'setimmediate'
 
 export default {
   name: 'app',
@@ -74,18 +25,14 @@ export default {
       showHelp: false
     }
   },
-  created () {
-    this.$on('fileLoaded', function (e) {
-      this.parseFile(e.result)
-      this.filename = e.filename
-    })
-  },
   methods: {
-    parseFile (csvString) {
+    parseFile (fileUpload) {
       this.csv = {}
       this.stats = {}
 
-      fastCsv.fromString(csvString, { headers: true })
+      this.filename = fileUpload.filename
+
+      parseString(fileUpload.content, { headers: true })
         .on('data', this.parseRow)
         .on('end', this.parseCompleteCallback)
     },
@@ -187,3 +134,24 @@ export default {
   }
 }
 </script>
+
+<template>
+  <div class="wrapper">
+    <div class="header">
+      <a class="brand" href="/" title="to convert csv datasets to midi. in case you feel like doing that.">
+        <h1>csv to midi</h1>
+      </a>
+      <div class="header-buttons">
+        <button class="help-button" title="help" @click="showHelp = true">
+          ?
+        </button>
+      </div>
+    </div>
+    <upload-pane :entries="entries"></upload-pane>
+    <work-pane :csv="csv" :stats="stats" :filename="filename"></work-pane>
+    <div class="footer">
+    </div>
+    <modal v-if="showHelp" @close="showHelp = false">
+    </modal>
+  </div>
+</template>
