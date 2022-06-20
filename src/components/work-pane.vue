@@ -185,7 +185,7 @@ export default {
       return notes[Math.floor(this.rescale(value, 0, notes.length-1, this.stats[this.params.noteColumn]))]
     },
     rescale (x, a, b, bound) {
-      console.log(x + ' ' + a + ' ' + b + ' ' + bound['min'] + ' ' + bound['max'])
+      // console.log(x + ' ' + a + ' ' + b + ' ' + bound['min'] + ' ' + bound['max'])
       if (bound['min'] == bound['max']) {
         return bound['min']
       }
