@@ -62,8 +62,8 @@ a:visited {
   padding: 2px;
   border: none;
   border-radius: 3px;
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   outline: none;
   font-size: 14px;
   font-weight: 700;
@@ -88,8 +88,9 @@ a:visited {
   display: grid;
   justify-content: space-between;
   align-items: center;
-  padding-left: 5px;
-  padding-right: 5px;
+  padding-left: 8px;
+  padding-right: 8px;
+  padding-bottom: 8px;
 }
 
 .upload-button {
@@ -143,7 +144,7 @@ button:disabled, button[disabled] {
 }
 
 .csv {
-  padding: 5px;
+  padding: 8px;
   font-size: 12px;
   display: flex;
   justify-content: flex-start;
@@ -175,7 +176,7 @@ button:disabled, button[disabled] {
 }
 
 .settings {
-  padding: 5px;
+  padding: 8px;
   display: grid;
   grid-template-columns: 33.333% 33.333% 33.333%;
   background-color: #cccccc;
@@ -198,6 +199,7 @@ button:disabled, button[disabled] {
 }
 
 .settings-subsection label {
+  margin-top: 4px;
   width: 50%;
 }
 
