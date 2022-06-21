@@ -1,6 +1,6 @@
 <template>
   <transition name="modal">
-    <div class="modal-mask">
+    <div class="modal-mask" @click="$emit('close')">
       <div class="modal-wrapper">
         <div class="modal-container">
       <div slot="body">
@@ -22,24 +22,32 @@
             </p>
 
             <p><h4>step by step:</h4></p>
-            <ol>
-              <li>load a csv dataset WITH HEADERS (it needs headers!)</li>
-              <li>assign columns to each sequence parameter</li>
-              <ul>
-                <li><b>note:</b> element value determines scale degree (note)</li>
-                <li><b>velocity:</b> determines note velocity</li>
-                <li><b>time:</b>
-                  determines when the note will sound. only ordered datasets
-                  (from earliest to latest) with time in UTC format currently
-                  work for this mapping. otherwise, notes will be ordered in a
-                  legato (no gaps) sequence.
-                </li>
-                <li><b>duration:</b> determines the length of the note, or choose from a
-                  fixed duration for all notes from the given options.</li>
-              </ul>
-              <li>tweak tonality parameters to your liking</li>
-              <li>save sequence</li>
-            </ol>
+            <p>
+              <ol>
+                <li>load a csv dataset WITH HEADERS (it needs headers!)</li>
+                <li>assign columns to each sequence parameter</li>
+                <ul>
+                  <li><b>note:</b> determines scale degree (note)</li>
+                  <li><b>velocity:</b> determines note velocity</li>
+                  <li><b>time:</b>
+                    determines when the note will sound. only ordered datasets
+                    (from earliest to latest) with time in UTC format currently
+                    work for this mapping. otherwise, notes will be legato (no gaps).
+                  </li>
+                  <li><b>duration:</b> determines the length of the note, or choose from a
+                    fixed duration for all notes from the given options.</li>
+                </ul>
+                <li>tweak tonality parameters to your liking</li>
+                <li>save sequence</li>
+              </ol>
+          </p>
+
+          <p><h4>privacy</h4></p>
+            <p>
+            this is an entirely client-side application – that means your data is only ever handled in your web browser 
+            and never leaves your computer. this site does not use cookies, analytics, or trackers. i do keep basic 
+            logs that tell me when someone visits the site, but that's it.
+            </p>
           </div>
 
           <div class="modal-footer">
@@ -74,65 +82,3 @@ export default {
   name: 'modal'
 }
 </script>
-
-<style scoped>
-/*
-  Based on the VueJS example: https://vuejs.org/v2/examples/modal.html
-*/
-.modal-mask {
-  position: fixed;
-  z-index: 9998;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, .5);
-  display: table;
-  transition: opacity .3s ease;
-}
-
-.modal-wrapper {
-  display: table-cell;
-  vertical-align: middle;
-}
-
-.modal-container {
-  width: 600px;
-  margin: 0px auto;
-  padding: 16px;
-  background-color: #fff;
-  border-radius: 5px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, .33);
-  transition: all .3s ease;
-}
-
-.modal-header h3 {
-  margin-top: 0;
-}
-
-.modal-body {
-  margin: 20px 0;
-}
-
-.modal-body p {
-  margin-bottom: 10px;
-}
-
-.modal-default-button {
-  float: right;
-}
-
-.modal-enter {
-  opacity: 0;
-}
-
-.modal-leave-active {
-  opacity: 0;
-}
-
-.modal-enter .modal-container,
-.modal-leave-active .modal-container {
-  -webkit-transform: scale(1.05);
-  transform: scale(1.05);
-}
-</style>
