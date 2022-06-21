@@ -194,6 +194,9 @@ export default {
       }
     },
     getVelocity (value) {
+      if (this.stats[this.params.veloColumn]['min'] == this.stats[this.params.veloColumn]['max']) {
+        return 100
+      }
       return Math.floor(this.rescale(value, 1, 100, this.stats[this.params.veloColumn]))
     },
     getDuration (value) {
@@ -309,9 +312,16 @@ export default {
   computed: {
     preview: function () {
       var preview = {}
+      var numRows = 15
 
       for (let key in this.csv) {
-        preview[key] = this.csv[key].slice(0, 10)
+        preview[key] = this.csv[key].slice(0, numRows)
+      }
+
+      for (let key in preview) {
+        if (preview[key].length == numRows) {
+          preview[key][numRows - 1] = '...'
+        }
       }
 
       return preview
