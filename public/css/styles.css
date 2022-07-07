@@ -62,8 +62,8 @@ a:visited {
   padding: 2px;
   border: none;
   border-radius: 3px;
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   outline: none;
   font-size: 14px;
   font-weight: 700;
@@ -88,8 +88,9 @@ a:visited {
   display: grid;
   justify-content: space-between;
   align-items: center;
-  padding-left: 5px;
-  padding-right: 5px;
+  padding-left: 8px;
+  padding-right: 8px;
+  padding-bottom: 8px;
 }
 
 .upload-button {
@@ -143,12 +144,15 @@ button:disabled, button[disabled] {
 }
 
 .csv {
-  padding: 5px;
+  padding: 8px;
   font-size: 12px;
   display: flex;
   justify-content: flex-start;
   flex-wrap: nowrap;
   width: 790px;
+
+  box-sizing: border-box;
+  overflow-x: auto;
 }
 
 .csv-startmessage {
@@ -166,6 +170,7 @@ button:disabled, button[disabled] {
 
 .csv-column {
   width: 50px;
+  padding-right: 8px;
 }
 
 .csv-item {
@@ -175,7 +180,7 @@ button:disabled, button[disabled] {
 }
 
 .settings {
-  padding: 5px;
+  padding: 8px;
   display: grid;
   grid-template-columns: 33.333% 33.333% 33.333%;
   background-color: #cccccc;
@@ -198,6 +203,7 @@ button:disabled, button[disabled] {
 }
 
 .settings-subsection label {
+  margin-top: 4px;
   width: 50%;
 }
 
@@ -228,7 +234,14 @@ button:disabled, button[disabled] {
 
 /*
  Help modal
+
+ Based on the VueJS example: https://vuejs.org/v2/examples/modal.html
 */
+
+.modal-body {
+  margin: 20px 0;
+}
+
 .modal-body p {
   margin-bottom: 10px;
 }
@@ -239,12 +252,62 @@ ol, ul {
 
 .modal-wrapper {
   line-height: 1.5;
+  display: table-cell;
+  vertical-align: middle;
 }
 
 .modal-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.modal-mask {
+  position: fixed;
+  z-index: 9998;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, .5);
+  display: table;
+  transition: opacity .3s ease;
+}
+
+.modal-container {
+  width: 600px;
+  margin: 0px auto;
+  padding: 16px;
+  background-color: #fff;
+  border-radius: 5px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .33);
+  transition: all .3s ease;
+
+  max-height: calc(100vh - 10px);
+  overflow-y: auto;
+
+}
+
+.modal-header h3 {
+  margin-top: 0;
+}
+
+.modal-default-button {
+  float: right;
+}
+
+.modal-enter {
+  opacity: 0;
+}
+
+.modal-leave-active {
+  opacity: 0;
+}
+
+.modal-enter .modal-container,
+.modal-leave-active .modal-container {
+  -webkit-transform: scale(1.05);
+  transform: scale(1.05);
 }
 
 /*
