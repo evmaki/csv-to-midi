@@ -270,6 +270,9 @@ export default {
       for (var i = 0; i < range; i++) {
         ary.push.apply(ary, tmp)
       }
+      
+      // add the tonic to the end (for better resolution in outputs)
+      ary.push(ary[0])
 
       // the notes appear one octave lower in midi – increment the octave value to correct this
       octave++
